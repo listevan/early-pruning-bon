@@ -20,7 +20,12 @@
 
 # --- MODULES ---
 module reset
-module load pythonmodule list
+module load python/3.12
+module unload cudatoolkit
+module load cuda/12.8
+module load ninja
+
+module list
 
 # --- UV SETUP ---
 # 1. Ensure uv is found (since you installed it in your home directory)

@@ -13,7 +13,6 @@ dependencies = [
     "wheel>=0.45.1",
     "setuptools>=80.9.0",
     "setuptools-scm>=9.2.2",
-    "adam-atan2>=0.0.3",
     "flash-attn",
     "numpy>=2.3.5",
     "pydantic>=2.12.5",
@@ -24,6 +23,8 @@ dependencies = [
     "tqdm>=4.67.1",
     "pyyaml>=6.0.3",
     "argdantic>=1.3.3",
+    "adam-atan2-pytorch",
+    "numba>=0.62.1",
 ]
 
 # Define the PyTorch index with CUDA 12.8 support
@@ -38,3 +39,4 @@ torch = { index = "pytorch" }
 torchvision = { index = "pytorch" }
 torchaudio = { index = "pytorch" }
 flash-attn = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.0.0/flash_attn-2.6.3+cu124torch2.5-cp312-cp312-linux_x86_64.whl" }
+adam-atan2-pytorch = { git = "https://github.com/lucidrains/adam-atan2-pytorch.git" }
