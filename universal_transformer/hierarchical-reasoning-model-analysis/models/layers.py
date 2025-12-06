@@ -132,7 +132,7 @@ class Attention(nn.Module):
             attn_output = attn_output[0]
 
         # attn_output: [batch_size, num_heads, seq_len, head_dim]
-        attn_output = attn_output.view(batch_size, seq_len, self.output_size)  # type: ignore
+        attn_output = attn_output.contiguous().view(batch_size, seq_len, self.output_size)  # type: ignore
         return self.o_proj(attn_output)
 
 

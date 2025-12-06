@@ -6,7 +6,7 @@
 #SBATCH --partition=gpuA100x8  # <- CHANGED: CPU partition won't work for 8-GPU training
 #SBATCH --account=bfvr-delta-gpu
 #SBATCH --job-name=ut_h1_pretrain
-#SBATCH --time=04:00:00
+#SBATCH --time=48:00:00
 #SBATCH --constraint="scratch"
 #SBATCH -e slurm-%j.err
 #SBATCH -o slurm-%j.out
@@ -20,13 +20,14 @@
 
 # --- MODULES ---
 module reset
-module load python/3.12
+module load python
 module unload cudatoolkit
 module load cuda/12.8
-module load ninja
 
 module list
 
+# --- ENV ---
+export WANDB_MODE=disabled
 # --- UV SETUP ---
 # 1. Ensure uv is found (since you installed it in your home directory)
 export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"

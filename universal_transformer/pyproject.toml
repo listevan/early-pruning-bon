@@ -38,5 +38,5 @@ explicit = true
 torch = { index = "pytorch" }
 torchvision = { index = "pytorch" }
 torchaudio = { index = "pytorch" }
-flash-attn = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.0.0/flash_attn-2.6.3+cu124torch2.5-cp312-cp312-linux_x86_64.whl" }
+flash-attn = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.5.4/flash_attn-2.6.3+cu128torch2.9-cp312-cp312-linux_x86_64.whl" }
 adam-atan2-pytorch = { git = "https://github.com/lucidrains/adam-atan2-pytorch.git" }
