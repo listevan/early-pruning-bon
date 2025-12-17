@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --mem=64g
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1    # Run 1 main task (torchrun handles the 8 subprocesses)
-#SBATCH --cpus-per-task=32     # Give plenty of CPU cores for data loading (4*8)
-#SBATCH --partition=gpuA100x8  # <- CHANGED: CPU partition won't work for 8-GPU training
+#SBATCH --ntasks-per-node=1    # Run 1 main task (torchrun handles the 4 subprocesses)
+#SBATCH --cpus-per-task=16     # Give plenty of CPU cores for data loading (4*4)
+#SBATCH --partition=gpuA100x4
 #SBATCH --account=bfvr-delta-gpu
 #SBATCH --job-name=ut_h1_pretrain
 #SBATCH --time=48:00:00
@@ -12,7 +12,7 @@
 #SBATCH -o slurm-%j.out
 
 ### GPU options ###
-#SBATCH --gpus-per-node=8
+#SBATCH --gpus-per-node=4
 #SBATCH --gpu-bind=none        # Let torchrun handle binding
 
 ##SBATCH --mail-user=sl212@illinois.edu
@@ -40,4 +40,4 @@ echo "Using uv from: $(which uv)"
 
 # --- EXECUTION ---
 cd ~/CS497/universal_transformer/hierarchical-reasoning-model-analysis
-uv run --frozen torchrun --nproc-per-node 8 pretrain.py arch=hrm_v2_params_matched arch.H_cycles=1
+uv run --frozen torchrun --nproc-per-node 4 pretrain.py arch=hrm_v2_params_matched arch.H_cycles=1

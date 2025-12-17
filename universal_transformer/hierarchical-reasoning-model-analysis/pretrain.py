@@ -336,6 +336,7 @@ def evaluate(
     rank: int,
     world_size: int,
     cpu_group: Optional[dist.ProcessGroup],
+    early_stop: bool = False,
 ):
     reduced_metrics = None
 
@@ -405,6 +406,9 @@ def evaluate(
             metric_values[set_id] += torch.stack([metrics[k] for k in metric_keys])
 
             del metrics
+            
+            if early_stop:
+                break
 
         # concatenate save preds
         save_preds = {k: torch.cat(v, dim=0) for k, v in save_preds.items()}
@@ -622,6 +626,7 @@ def launch(hydra_config: DictConfig):
                 rank=RANK,
                 world_size=WORLD_SIZE,
                 cpu_group=CPU_PROCESS_GROUP,
+                early_stop=True,
             )
 
             if RANK == 0 and metrics is not None:
