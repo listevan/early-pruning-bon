@@ -21,3 +21,27 @@ for i, prompt in enumerate(prompts):
     print(f"Question {data[i]['question']}\n----------------\nResponse {output_text}")
 
 print(total_score / len(outputs))
+
+# from vllm import LLM, SamplingParams
+# import reasoning_gym
+
+# num_examples = 1
+# data = reasoning_gym.create_dataset("countdown", size=num_examples, seed=42)
+
+# prompts = []
+# for entry in data:
+#     prompts.append(f"{entry['question']}\n\nSolution:\n")
+
+# sampling_params = SamplingParams(temperature=0)
+# llm = LLM(model="Qwen/Qwen3-1.7B")
+# outputs = llm.generate(prompts, sampling_params)
+
+# total_score = 0
+# for i, output in enumerate(outputs):
+#     output_text = output.outputs[0].text
+#     score = data.score_answer(answer=output_text, entry=data[i])
+#     total_score += score
+#     print(f"Task {i} Score: {score}")
+#     print(f"Question {data[i]['question']}\n----------------\nResponse {output_text}")
+
+# print(total_score / len(outputs))
