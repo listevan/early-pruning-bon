@@ -4,13 +4,15 @@ import reasoning_gym
 import re
 
 num_examples = 100
-data = reasoning_gym.create_dataset("countdown", size=num_examples, seed=42)
+data = reasoning_gym.create_dataset("countdown", size=num_examples, seed=42, min_numbers=5, max_numbers=5)
 
 prompts = []
 for entry in data:
     prompts.append([{"role": "user", "content": entry["question"]}])
 
-sampling_params = SamplingParams(temperature=0.4, max_tokens=16384)
+sampling_params = SamplingParams(temperature=0.4, top_p=0.95, max_tokens=16384)
+# best_of_n = 2
+# sampling_params = SamplingParams(n=best_if_n, best_of=best_of_n, temperature=0.7, top_p=0.95, max_tokens=16384)
 llm = LLM(model="Qwen/Qwen3-1.7B")
 
 outputs = llm.chat(prompts, sampling_params = sampling_params)
