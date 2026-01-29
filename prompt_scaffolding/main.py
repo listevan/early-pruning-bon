@@ -3,31 +3,45 @@ import reasoning_gym
 
 import re
 
+dataset_type = "countdown"
 num_examples = 100
-data = reasoning_gym.create_dataset("countdown", size=num_examples, seed=42, min_numbers=5, max_numbers=5)
+temperature = 0.7 # 0.4
+best_of_ns = [1,2,4,8,16,32]
+model="Qwen/Qwen3-1.7B"
+
+data = reasoning_gym.create_dataset(dataset_type, size=num_examples, seed=42, min_numbers=5, max_numbers=5)
 
 prompts = []
 for entry in data:
     prompts.append([{"role": "user", "content": entry["question"]}])
 
-sampling_params = SamplingParams(temperature=0.4, top_p=0.95, max_tokens=16384)
-# best_of_n = 2
-# sampling_params = SamplingParams(n=best_of_n, best_of=best_of_n, temperature=0.7, top_p=0.95, max_tokens=16384)
-llm = LLM(model="Qwen/Qwen3-1.7B")
+llm = LLM(model=model)
 
-outputs = llm.chat(prompts, sampling_params = sampling_params)
+for best_of_n in best_of_ns:
+    sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=16384)
 
-total_score = 0
-for i, output in enumerate(outputs):
-    output_text = re.search(r"(?<=<\/think>)\s*([\s\S]*)", output.outputs[0].text, re.DOTALL)
-    if output_text:
-        output_text = output_text.group(1)
-        score = data.score_answer(answer=output_text, entry=data[i])
-    else:
-        output_text = ""
-        score = 0
-    total_score += score
-    print(f"Task {i} Score: {score}")
-    print(f"Question {data[i]['question']}\n----------------\nResponse {output_text}")
+    outputs = llm.chat(prompts, sampling_params = sampling_params)
 
-print(total_score / len(outputs))
+    total_score = 0
+    lines = []
+    for i, output in enumerate(outputs):
+        best_score_for_task=-1
+        best_response_text=""
+
+        for candidate in output.outputs:
+            match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", candidate.text, re.DOTALL)
+            candidate_text = match.group(1) if match else candidate.text
+            score = data.score_answer(answer=candidate_text, entry=data[i])
+            
+            if score > best_score_for_task:
+                best_score_for_task = score
+                best_response_text = candidate_text
+                
+        total_score += best_score_for_task
+        lines.append(f"Task {i} Score: {best_score_for_task}\n------------------------\nQuestion {data[i]['question']}\n------------------------\nResponse {candidate_text}\n-------------------------------------------")
+
+    filename = f"{model.replace(".", "_").replace("/", "_")}_n={best_of_n}_t={temperature}_{dataset_type}_n={num_examples}.txt"
+    with open(filename, "w") as f:
+        f.write("\n".join(lines))
+
+    print(f"best_of_{best_of_n} score is: {total_score / len(outputs)}")
