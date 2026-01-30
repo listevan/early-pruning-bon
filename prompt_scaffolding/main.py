@@ -5,7 +5,7 @@ import re
 
 dataset_type = "countdown"
 num_examples = 100
-temperature = 0.7 # 0.4
+temperature = 0.9 # 0.4
 best_of_ns = [1,2,4,8,16,32]
 model="Qwen/Qwen3-1.7B"
 
