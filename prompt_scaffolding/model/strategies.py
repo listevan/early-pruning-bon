@@ -38,25 +38,25 @@ class Strategy(ABC):
 
 class HypothesisStrategy(Strategy):
     def __init__(self, llm):
-        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. Provide a hypothesis for how to solve this problem"
+        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. Provide a hypothesis for how to solve this problem."
         super().__init__(llm, prompt_strategy)
 
 class PlanStrategy(Strategy):
     def __init__(self, llm):
-        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. "
+        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. Provide a plan to solve this problem."
         super().__init__(llm, prompt_strategy)
 
 class ConceptStrategy(Strategy):
     def __init__(self, llm):
-        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. "
+        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. Provide the necessary concepts to solve this problem."
         super().__init__(llm, prompt_strategy)
 
 class ReasoningStructureStrategy(Strategy):
     def __init__(self, llm):
-        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. "
+        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. Provide a Algorithmic Reasoning Structure for this problem."
         super().__init__(llm, prompt_strategy)
 
 class CountdownStrategy(Strategy):
     def __init__(self, llm):
-        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. "
+        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. Provide the strategies for Countdown to solve this problem."
         super().__init__(llm, prompt_strategy)

@@ -13,6 +13,7 @@ class Model:
 
             outputs = []
             for diverse_prompts, og_prompt in zip(new_request_prompts, prompts):
+                new_best_of_n = len(diverse_prompts)
                 formatted_variants = [[{"role": "user", "content": prompt + og_prompt}] for prompt in diverse_prompts]
                 prompt_outputs = self.llm.chat(formatted_variants, sampling_params=sampling_params)
                 
@@ -24,7 +25,9 @@ class Model:
                             completion.text = strategy._extract_content(completion.text)
                             base_output.outputs.append(completion)
                     outputs.append(base_output)
+            
+            return outputs
         else:
             sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_tokens)
             outputs = self.llm.chat(prompts, sampling_params=sampling_params)
-        return outputs
+            return outputs

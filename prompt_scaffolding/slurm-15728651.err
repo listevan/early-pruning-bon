@@ -1,0 +1,19 @@
+Running "module reset". Resetting modules to system default. The following $MODULEPATH directories have been removed: /sw/rh9.4/spack/default/modules/lmod/linux-rhel9-x86_64/Core
+
+Currently Loaded Modules:
+  1) gcc-native/13.2      6) cray-libsci/25.03.0    11) craype-accel-nvidia80
+  2) craype/2.7.34        7) PrgEnv-gnu/8.6.0       12) cue-login-env/1.1
+  3) libfabric/1.22.0     8) cray-dsmml/0.3.1       13) slurm-env/0.1
+  4) craype-network-ofi   9) craype-x86-milan       14) default
+  5) cray-mpich/8.1.32   10) cudatoolkit/25.3_12.8
+
+ 
+
+[0;36m(EngineCore_DP0 pid=428757)[0;0m Loading safetensors checkpoint shards:   0% Completed | 0/1 [00:00<?, ?it/s]
+[0;36m(EngineCore_DP0 pid=428757)[0;0m Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:01<00:00,  1.47s/it]
+[0;36m(EngineCore_DP0 pid=428757)[0;0m Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:01<00:00,  1.47s/it]
+[0;36m(EngineCore_DP0 pid=428757)[0;0m 
+[0;36m(EngineCore_DP0 pid=428757)[0;0m Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   0%|          | 0/51 [00:00<?, ?it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   4%|▍         | 2/51 [00:00<00:03, 13.40it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   8%|▊         | 4/51 [00:00<00:03, 14.80it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  14%|█▎        | 7/51 [00:00<00:02, 18.13it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  20%|█▉        | 10/51 [00:00<00:01, 21.33it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  27%|██▋       | 14/51 [00:00<00:01, 25.83it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  35%|███▌      | 18/51 [00:00<00:01, 29.17it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  43%|████▎     | 22/51 [00:00<00:00, 31.13it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  51%|█████     | 26/51 [00:00<00:00, 32.60it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  59%|█████▉    | 30/51 [00:01<00:00, 30.48it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  67%|██████▋   | 34/51 [00:01<00:00, 31.55it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  75%|███████▍  | 38/51 [00:01<00:00, 32.54it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  82%|████████▏ | 42/51 [00:01<00:00, 31.59it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  90%|█████████ | 46/51 [00:01<00:00, 32.16it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  98%|█████████▊| 50/51 [00:01<00:00, 32.56it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE): 100%|██████████| 51/51 [00:01<00:00, 28.12it/s]
+[0;36m(EngineCore_DP0 pid=428757)[0;0m Capturing CUDA graphs (decode, FULL):   0%|          | 0/35 [00:00<?, ?it/s]Capturing CUDA graphs (decode, FULL):   3%|▎         | 1/35 [00:00<00:03,  9.49it/s]Capturing CUDA graphs (decode, FULL):  14%|█▍        | 5/35 [00:00<00:01, 24.74it/s]Capturing CUDA graphs (decode, FULL):  26%|██▌       | 9/35 [00:00<00:00, 29.37it/s]Capturing CUDA graphs (decode, FULL):  37%|███▋      | 13/35 [00:00<00:00, 30.44it/s]Capturing CUDA graphs (decode, FULL):  49%|████▊     | 17/35 [00:00<00:00, 32.13it/s]Capturing CUDA graphs (decode, FULL):  60%|██████    | 21/35 [00:00<00:00, 33.00it/s]Capturing CUDA graphs (decode, FULL):  71%|███████▏  | 25/35 [00:00<00:00, 33.32it/s]Capturing CUDA graphs (decode, FULL):  83%|████████▎ | 29/35 [00:00<00:00, 34.03it/s]Capturing CUDA graphs (decode, FULL):  94%|█████████▍| 33/35 [00:01<00:00, 34.31it/s]Capturing CUDA graphs (decode, FULL): 100%|██████████| 35/35 [00:01<00:00, 32.08it/s]
+Adding requests:   0%|          | 0/100 [00:00<?, ?it/s]Adding requests: 100%|██████████| 100/100 [00:00<00:00, 1018.42it/s]
+Processed prompts:   0%|          | 0/3200 [00:00<?, ?it/s, est. speed input: 0.00 toks/s, output: 0.00 toks/s]
