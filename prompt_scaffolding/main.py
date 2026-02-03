@@ -10,10 +10,9 @@ level = 6
 num_examples = 100
 
 temperature = 0.9 
-best_of_ns = [1,2,4,8,16,32]
+# best_of_ns = [1,2,4,8,16,32]
+best_of_ns = [1,2,4,8,16] # 32 is way too large for A40 right now...
 model="Qwen/Qwen3-0.6B"
-
-strategy=None
 
 data = reasoning_gym.create_dataset(dataset_type, size=num_examples, seed=42, min_numbers=level, max_numbers=level)
 
@@ -22,6 +21,7 @@ for entry in data:
     prompts.append([{"role": "user", "content": entry["question"]}])
 
 llm = Model(model)
+strategy = HypothesisStrategy(llm=llm.llm)
 
 outputs = Model.generate_responses(llm, prompts, best_of_n=max(best_of_ns), temperature=temperature, max_tokens=16384, strategy=strategy)
 

@@ -15,10 +15,12 @@ class Strategy(ABC):
     
     def generate_prompts(self, user_prompts, best_of_n, temperature, max_tokens=16384):
         sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_tokens)
-        prompts = [[
-            {"role": "system", "content": self.prompt_strategy},
-            {"role": "user", "content": user_prompt}
-        ] for user_prompt in user_prompts]
+        prompts = [
+            [
+                {"role": "system", "content": self.prompt_strategy},
+                {"role": "user", "content": user_prompt[0]['content']}
+            ] for user_prompt in user_prompts
+        ]
         outputs = self.llm.chat(prompts, sampling_params=sampling_params)
         generated_prompts = []
         for request_output in outputs:
