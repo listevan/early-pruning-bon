@@ -25,3 +25,10 @@ INFO 02-02 10:23:41 [vllm.py:637] Disabling NCCL for DP synchronization when usi
 [0;36m(EngineCore_DP0 pid=428757)[0;0m INFO 02-02 10:24:09 [core.py:273] init engine (profile, create kv cache, warmup model) took 18.30 seconds
 INFO 02-02 10:24:10 [llm.py:347] Supported tasks: ['generate']
 INFO 02-02 10:24:11 [chat_utils.py:599] Detected the chat template content format to be 'string'. You can set `--chat-template-content-format` to override this.
+best_of_1 score is: 0.12089999999999984
+best_of_2 score is: 0.25000000000000056
+best_of_4 score is: 0.3027000000000006
+best_of_8 score is: 0.44050000000000006
+best_of_16 score is: 0.6206999999999996
+best_of_32 score is: 0.6804999999999995
+ERROR 02-02 21:30:17 [core_client.py:610] Engine core proc EngineCore_DP0 died unexpectedly, shutting down client.
