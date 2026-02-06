@@ -22,6 +22,7 @@ for entry in data:
 
 llm = Model(model)
 strategy = HypothesisStrategy(llm=llm.llm)
+strategy_name = "HypothesisStrategy"
 
 outputs = Model.generate_responses(llm, prompts, best_of_n=max(best_of_ns), temperature=temperature, max_tokens=16384, strategy=strategy)
 
@@ -32,7 +33,11 @@ for i, request_output in enumerate(outputs):
     all_candidates = request_output.outputs
     
     for best_of_n in best_of_ns:
-        selected_candidates = random.sample(all_candidates, best_of_n)
+        # import pdb; pdb.set_trace()
+        # if best_of_n < len(all_candidates):
+            # selected_candidates = random.sample(all_candidates, best_of_n)
+        # else:
+        selected_candidates = random.sample(all_candidates, 1)
         
         best_score_for_task = -1
         best_response_text = ""
@@ -51,9 +56,11 @@ for i, request_output in enumerate(outputs):
         
         scores_per_n[best_of_n] += best_score_for_task
         results_per_n[best_of_n].append(f"Task {i}, Num Tokens: {best_num_tokens}, Score: {best_score_for_task}\n------------------------\nQuestion {data[i]['question']}\n------------------------\nResponse {best_response_text}\n-------------------------------------------")
+    print(f"Finished {i}")
+    
 
 for best_of_n in best_of_ns:
-    filename = f"{model.replace('.', '_').replace('/', '_')}_n={best_of_n}_t={temperature}_{dataset_type}_n={num_examples}.txt"
+    filename = f"{model.replace('.', '_').replace('/', '_')}_n={best_of_n}_t={temperature}_{dataset_type}_n={num_examples}_{strategy_name}.txt"
     with open(filename, "w") as f:
         f.write("\n".join(results_per_n[best_of_n]))
     

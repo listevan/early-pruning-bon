@@ -17,14 +17,17 @@ class Model:
                 formatted_variants = [[{"role": "user", "content": prompt + og_prompt[0]['content']}] for prompt in diverse_prompts]
                 prompt_outputs = self.llm.chat(formatted_variants, sampling_params=sampling_params)
                 
-                if prompt_outputs:
-                    base_output = prompt_outputs[0]
-                    base_output.outputs = []
-                    for output in prompt_outputs:
-                        for completion in output.outputs:
-                            completion.text = strategy._extract_content(completion.text)
-                            base_output.outputs.append(completion)
-                    outputs.append(base_output)
+            if prompt_outputs:
+                base_output = prompt_outputs[0]
+                all_completions = []  # ← Collect completions first
+                
+                for output in prompt_outputs:
+                    for completion in output.outputs:
+                        completion.text = strategy._extract_content(completion.text)
+                        all_completions.append(completion)
+                
+                base_output.outputs = all_completions  # ← Then assign all at once
+                outputs.append(base_output)
             
             return outputs
         else:
