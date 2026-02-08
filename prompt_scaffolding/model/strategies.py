@@ -21,7 +21,7 @@ class Strategy(ABC):
                 {"role": "user", "content": user_prompt[0]['content']}
             ] for user_prompt in user_prompts
         ]
-        outputs = self.llm.chat(prompts, sampling_params=sampling_params)
+        outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
         generated_prompts = []
         for request_output in outputs:
             request_prompts = []
@@ -31,34 +31,34 @@ class Strategy(ABC):
 
         sampling_params = SamplingParams(temperature=0.4, top_p=0.95, max_tokens=max_tokens)
         prompts = [[
-            {"role": "system", "content": "Do NOT use <think> tags or show your reasoning steps. The following text contains several prompt options separated by '##__SEPARATOR__##'. Select the unique approaches and Separate with '##__SEPARATOR__##': "},
+            {"role": "system", "content": "The following text contains several prompt options separated by '##__SEPARATOR__##'. Select the unique approaches and Separate with '##__SEPARATOR__##': "},
             {"role": "user", "content": f"{generated_prompt}"}
         ] for generated_prompt in generated_prompts]
-        outputs = self.llm.chat(prompts, sampling_params=sampling_params)
+        outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
         generated_prompts = [self._extract_content(output.outputs[0].text).split("##__SEPARATOR__##") for output in outputs]
         return generated_prompts 
 
 class HypothesisStrategy(Strategy):
     def __init__(self, llm):
-        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. Provide a hypothesis for how to solve this problem."
+        prompt_strategy = "Do NOT solve the problem. Provide a hypothesis for how to solve this problem."
         super().__init__(llm, prompt_strategy)
 
 class PlanStrategy(Strategy):
     def __init__(self, llm):
-        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. Provide a plan to solve this problem."
+        prompt_strategy = "Do NOT solve the problem. Provide a plan to solve this problem."
         super().__init__(llm, prompt_strategy)
 
 class ConceptStrategy(Strategy):
     def __init__(self, llm):
-        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. Provide the necessary concepts to solve this problem."
+        prompt_strategy = "Do NOT solve the problem. Provide the necessary concepts to solve this problem."
         super().__init__(llm, prompt_strategy)
 
 class ReasoningStructureStrategy(Strategy):
     def __init__(self, llm):
-        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. Provide a Algorithmic Reasoning Structure for this problem."
+        prompt_strategy = "Do NOT solve the problem. Provide a Algorithmic Reasoning Structure for this problem."
         super().__init__(llm, prompt_strategy)
 
 class CountdownStrategy(Strategy):
     def __init__(self, llm):
-        prompt_strategy = "Do NOT use <think> tags or show your reasoning steps. Do NOT solve the problem. Provide the strategies for Countdown to solve this problem."
+        prompt_strategy = "Do NOT solve the problem. Provide the strategies for Countdown to solve this problem."
         super().__init__(llm, prompt_strategy)

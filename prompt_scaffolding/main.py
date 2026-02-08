@@ -7,7 +7,7 @@ import random
 
 dataset_type = "countdown"
 level = 6
-num_examples = 100
+num_examples = 10
 
 temperature = 0.9 
 # best_of_ns = [1,2,4,8,16,32]
@@ -30,13 +30,12 @@ results_per_n = {n: [] for n in best_of_ns}
 scores_per_n = {n: 0 for n in best_of_ns}
 
 for i, request_output in enumerate(outputs):
-    all_candidates = request_output.outputs
+    print(f"\n=== STARTED itr {i} ===")
+    import pdb; pdb.set_trace()
+    # all_candidates = request_output.outputs
+    # request_output now = single CompletionOutput
     
     for best_of_n in best_of_ns:
-        # import pdb; pdb.set_trace()
-        # if best_of_n < len(all_candidates):
-            # selected_candidates = random.sample(all_candidates, best_of_n)
-        # else:
         selected_candidates = random.sample(all_candidates, 1)
         
         best_score_for_task = -1
@@ -56,7 +55,6 @@ for i, request_output in enumerate(outputs):
         
         scores_per_n[best_of_n] += best_score_for_task
         results_per_n[best_of_n].append(f"Task {i}, Num Tokens: {best_num_tokens}, Score: {best_score_for_task}\n------------------------\nQuestion {data[i]['question']}\n------------------------\nResponse {best_response_text}\n-------------------------------------------")
-    print(f"Finished {i}")
     
 
 for best_of_n in best_of_ns:
