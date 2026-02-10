@@ -6,7 +6,7 @@ import sys
 
 class Model:
     def __init__(self, model_name: str):
-        self.llm = LLM(model=model_name)
+        self.llm = LLM(model=model_name, tensor_parallel_size=1)
 
     def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, strategy=None):
         # see if user decided to use a strategy

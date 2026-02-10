@@ -17,7 +17,7 @@ best_of_ns = [1,2] # ,4,8,16] # 32 is way too large for A40 right now...
 model="Qwen/Qwen3-0.6B"
 
 # initialize model
-llm = Model(model, tesnor_parallel_size=1)
+llm = Model(model)
 # model strategy, set to None if not using
 strategy = PlanStrategy(llm=llm.llm)
 
