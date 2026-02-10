@@ -17,10 +17,9 @@ best_of_ns = [1,2] # ,4,8,16] # 32 is way too large for A40 right now...
 model="Qwen/Qwen3-0.6B"
 
 # initialize model
-llm = Model(model)
+llm = Model(model, tesnor_parallel_size=1)
 # model strategy, set to None if not using
-strategy = HypothesisStrategy(llm=llm.llm)
-strategy_name = "HypothesisStrategy"
+strategy = PlanStrategy(llm=llm.llm)
 
 data = reasoning_gym.create_dataset(dataset_type, size=num_examples, seed=42, min_numbers=level, max_numbers=level)
 # convert prompts into chat format for qwen
@@ -29,7 +28,7 @@ for entry in data:
     prompts.append([{"role": "user", "content": entry["question"]}])
 
 # generate responses
-outputs = Model.generate_responses(llm, prompts, best_of_n=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy)
+outputs = Model.generate_responses(llm, prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy)
 
 # initialize result dictionaries
 results_per_n = {n: [] for n in best_of_ns}

@@ -28,7 +28,7 @@ class Model:
                     print(f"diverse promtps are: {diverse_request_prompts}", file=sys.stderr)
 
                     # format the diversified prompt by prepending the original prompt and putting into qwen format
-                    formatted_variants = [[{"role": "user", "content": prompt + og_prompt[0]['content']}] for diverse_prompt in diverse_request_prompts]
+                    formatted_variants = [[{"role": "user", "content": diverse_prompt + og_prompt[0]['content']}] for diverse_prompt in diverse_request_prompts]
 
                     # generate results from the formatted variants
                     outputs = self.llm.chat(formatted_variants, sampling_params=sampling_params)
