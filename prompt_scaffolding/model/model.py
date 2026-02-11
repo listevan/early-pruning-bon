@@ -15,8 +15,8 @@ class Model:
 
             # loop through the best_of_ns to run diversification and generation for each n
             for i, best_of_n in enumerate(best_of_ns):
-                # if so, use the strategy to generate a set of diverse prompts (from the original best_of_n)
-                new_request_prompts = strategy.generate_prompts(prompts, best_of_n, temperature)
+                # if so, use the strategy to generate a set of diverse prompts (from the original best_of_n), ignore formatting part of the prompt
+                new_request_prompts = strategy.generate_prompts([[{"role": "user", "content": prompt.split("\n")[0]}] for prompt in prompts], best_of_n, temperature)
 
                 # define sampling parameters with user hyperparameters
                 sampling_params = SamplingParams(temperature=temperature, top_p=0.95, max_tokens=max_tokens)
@@ -24,22 +24,19 @@ class Model:
                 # import pdb; pdb.set_trace()
 
                 # loop through the question prompts and then through diversified prompts to generate the results
-                for diverse_request_prompts, og_prompt in zip(new_request_prompts, prompts):
-                    print(f"diverse promtps are: {diverse_request_prompts}", file=sys.stderr)
-
+                for j, (diverse_request_prompts, og_prompt) in enumerate(zip(new_request_prompts, prompts)):
                     # format the diversified prompt by prepending the original prompt and putting into qwen format
-                    formatted_variants = [[{"role": "user", "content": diverse_prompt + og_prompt[0]['content']}] for diverse_prompt in diverse_request_prompts]
+                    formatted_variants = [[{"role": "user", "content": og_prompt + "\n" + diverse_prompt}] for diverse_prompt in diverse_request_prompts]
 
                     # generate results from the formatted variants
                     outputs = self.llm.chat(formatted_variants, sampling_params=sampling_params)
                     
                     # store the results, if its the first iteration append to organized_outputs
                     if i == 0:
-                        organized_outputs = [{best_of_n: request_output.outputs} for request_output in outputs]
+                        organized_outputs.append({best_of_n: [request_output.outputs[0] for request_output in outputs]})
                     # otherwise just add the best_of n results
                     else:
-                        for j, request_output in enumerate(outputs):
-                            organized_outputs[j][best_of_n] = request_output.outputs
+                        organized_outputs[j][best_of_n] = [request_output.outputs[0] for request_output in outputs]
 
             return organized_outputs
         else:

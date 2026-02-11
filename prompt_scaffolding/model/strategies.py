@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 import re
+import sys
+import random
 from vllm import LLM, SamplingParams
 
 class Strategy(ABC):
@@ -15,19 +17,25 @@ class Strategy(ABC):
         return text.strip()
     
     def generate_prompts(self, user_prompts, best_of_n, temperature, max_tokens=16384):
+        print(f"best_of_n: {best_of_n}")
+        # generate random number for random question to print
+        random_question = random.randrange(len(user_prompts))
+        print(f"results for a random question {random_question}")
+
         # set up sampling parameters with user given hyperparameters
         sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_tokens)
 
         # format prompts for qwen, define system prompt with strategy text
+        # TODO: remove the wrapper asking for solution formatting (keep only necessary parts), change to .generate() and use chat template (enable_thinking is part of this) from huggingface
         prompts = [
             [
-                {"role": "system", "content": self.prompt_strategy},
-                {"role": "user", "content": user_prompt[0]['content']}
+                {"role": "user", "content": self.prompt_strategy + user_prompt[0]['content']}
             ] for user_prompt in user_prompts
         ]
 
         # generate strategy results without thinking
         outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
+        print(f"original plans are: {outputs[random_question].outputs}")
 
         # loop through the different questions and combine the generated ideas with separator tokens
         generated_prompts = []
@@ -44,8 +52,7 @@ class Strategy(ABC):
 
         # format prompts for qwen with system prompt to tell model of separator and ask for diverse prompts
         prompts = [[
-            {"role": "system", "content": "The following text contains several prompt options separated by '##__SEPARATOR__##'. Select the unique approaches and Separate with '##__SEPARATOR__##': "},
-            {"role": "user", "content": f"{generated_prompt}"}
+            {"role": "user", "content": f"Do NOT solve the problem. The following text contains several prompt options separated by '##__SEPARATOR__##'. Only select the unique approaches and Separate with '##__SEPARATOR__##': {generated_prompt}"}
         ] for generated_prompt in generated_prompts]
 
         # get diverse prompts
@@ -53,6 +60,8 @@ class Strategy(ABC):
 
         # return the prompts but as a list (questions) of lists (unique prompts)
         generated_prompts = [self._extract_content(output.outputs[0].text).split("##__SEPARATOR__##") for output in outputs]
+        print(f"diverse plans are: {outputs[random_question]}")
+        print(f"------------------------------------------------------------------------------------------------------------")
         return generated_prompts 
 
 class HypothesisStrategy(Strategy):

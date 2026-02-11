@@ -20,12 +20,11 @@ model="Qwen/Qwen3-0.6B"
 llm = Model(model)
 # model strategy, set to None if not using
 strategy = PlanStrategy(llm=llm.llm)
+strategy_name = "PlanStrategy"
 
 data = reasoning_gym.create_dataset(dataset_type, size=num_examples, seed=42, min_numbers=level, max_numbers=level)
-# convert prompts into chat format for qwen
-prompts = [] 
-for entry in data:
-    prompts.append([{"role": "user", "content": entry["question"]}])
+# load the questions
+prompts = [entry["question"] for entry in data]
 
 # generate responses
 outputs = Model.generate_responses(llm, prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy)
@@ -37,7 +36,6 @@ tokens_per_n = {n: [] for n in best_of_ns}
 
 # loop through the different countdown questions
 for i, request_output in enumerate(outputs):
-    print(f"\n=== STARTED QUESTION {i} ===")
     # import pdb; pdb.set_trace()
     # get all of the n results for question i
     
