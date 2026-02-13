@@ -17,6 +17,8 @@ class Strategy(ABC):
         return text.strip()
     
     def generate_prompts(self, user_prompts, best_of_n, temperature, max_tokens=16384):
+        total_tokens = 0
+
         print(f"best_of_n: {best_of_n}")
         # generate random number for random question to print
         random_question = random.randrange(len(user_prompts))
@@ -35,6 +37,7 @@ class Strategy(ABC):
 
         # generate strategy results without thinking
         outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
+        total_tokens += sum([len(plan.token_ids) for request_output in outputs for plan in request_output.outputs])
         print(f"original plans are: {outputs[random_question].outputs}")
 
         # loop through the different questions and combine the generated ideas with separator tokens
@@ -48,7 +51,7 @@ class Strategy(ABC):
             generated_prompts.append("##__SEPARATOR__##".join(request_prompts)) # should we have newline here?
 
         # create sampling params for model to determine if it's unique
-        sampling_params = SamplingParams(temperature=0.4, top_p=0.95, max_tokens=max_tokens)
+        sampling_params = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=max_tokens)
 
         # format prompts for qwen with system prompt to tell model of separator and ask for diverse prompts
         prompts = [[
@@ -57,12 +60,13 @@ class Strategy(ABC):
 
         # get diverse prompts
         outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
+        total_tokens += sum([len(request_output.outputs[0].token_ids) for request_output in outputs])
 
         # return the prompts but as a list (questions) of lists (unique prompts)
         generated_prompts = [self._extract_content(output.outputs[0].text).split("##__SEPARATOR__##") for output in outputs]
-        print(f"diverse plans are: {outputs[random_question]}")
+        print(f"diverse plans are: {outputs[random_question].outputs}")
         print(f"------------------------------------------------------------------------------------------------------------")
-        return generated_prompts 
+        return generated_prompts, total_tokens
 
 class HypothesisStrategy(Strategy):
     def __init__(self, llm):

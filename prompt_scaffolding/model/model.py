@@ -12,11 +12,15 @@ class Model:
         # see if user decided to use a strategy
         if strategy:
             organized_outputs = []
+            organized_total_tokens = {}
 
             # loop through the best_of_ns to run diversification and generation for each n
             for i, best_of_n in enumerate(best_of_ns):
                 # if so, use the strategy to generate a set of diverse prompts (from the original best_of_n), ignore formatting part of the prompt
-                new_request_prompts = strategy.generate_prompts([[{"role": "user", "content": prompt.split("\n")[0]}] for prompt in prompts], best_of_n, temperature)
+                new_request_prompts, total_tokens = strategy.generate_prompts([[{"role": "user", "content": prompt.split("\n")[0]}] for prompt in prompts], best_of_n, temperature)
+                
+                # save the intermediate total_tokens used for this best_of_n
+                organized_total_tokens[best_of_n] = total_tokens
 
                 # define sampling parameters with user hyperparameters
                 sampling_params = SamplingParams(temperature=temperature, top_p=0.95, max_tokens=max_tokens)
@@ -38,7 +42,7 @@ class Model:
                     else:
                         organized_outputs[j][best_of_n] = [request_output.outputs[0] for request_output in outputs]
 
-            return organized_outputs
+            return organized_outputs, organized_total_tokens
         else:
             # if not use user hyperparameters to generate results from prompt
             sampling_params = SamplingParams(n=max(best_of_ns), temperature=temperature, top_p=0.95, max_tokens=max_tokens)
@@ -49,4 +53,4 @@ class Model:
             for i, request_output in enumurate(outputs):
                 organized_outputs.append({best_of_n: random.sample(request_output.outputs, best_of_n) for best_of_n in best_of_ns})
 
-            return organized_outputs
+            return organized_outputs, None

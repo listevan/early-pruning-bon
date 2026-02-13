@@ -9,11 +9,11 @@ import sys
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 10
+num_examples = 100
 
 # model hyperparameters
-temperature = 0.9 
-best_of_ns = [1,2] # ,4,8,16] # 32 is way too large for A40 right now...
+temperature = 0.9
+best_of_ns = [1,2,4,8,16] # 32 is way too large for A40 right now...
 model="Qwen/Qwen3-0.6B"
 
 # initialize model
@@ -27,7 +27,7 @@ data = reasoning_gym.create_dataset(dataset_type, size=num_examples, seed=42, mi
 prompts = [entry["question"] for entry in data]
 
 # generate responses
-outputs = Model.generate_responses(llm, prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy)
+outputs, intermediate_tokens = Model.generate_responses(llm, prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy)
 
 # initialize result dictionaries
 results_per_n = {n: [] for n in best_of_ns}
@@ -53,9 +53,9 @@ for i, request_output in enumerate(outputs):
         total_num_tokens = 0
 
         for candidate in selected_candidates:
-            # get number of tokens
+            # get number of tokens and intermediate tokens
             num_tokens = len(candidate.token_ids)
-            total_num_tokens += num_tokens
+            total_num_tokens += num_tokens + intermediate_tokens[best_of_n]
             
             # remove <think></think> tags to get solution
             match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", candidate.text, re.DOTALL)
