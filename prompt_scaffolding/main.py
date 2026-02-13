@@ -76,10 +76,10 @@ for i, request_output in enumerate(outputs):
         # store number of tokens used in total for task
         tokens_per_n[best_of_n].append(total_num_tokens)
 
+        print(f"best_of_{best_of_n} score is: {float(sum(scores_per_n[best_of_n])) / len(outputs)} annd used average token count of: {float(sum(tokens_per_n[best_of_n])) / len(outputs)}")
+
 # save results to file
 for best_of_n in best_of_ns:
     filename = f"{model.replace('.', '_').replace('/', '_')}_n={best_of_n}_t={temperature}_{dataset_type}_n={num_examples}_{strategy_name}.txt"
     with open(filename, "w") as f:
         f.write("\n".join(results_per_n[best_of_n]))
-    
-    print(f"best_of_{best_of_n} score is: {float(sum(scores_per_n[best_of_n])) / len(outputs)} annd used average token count of: {float(sum(tokens_per_n[best_of_n])) / len(outputs)}")
