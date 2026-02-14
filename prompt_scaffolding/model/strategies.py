@@ -68,6 +68,9 @@ class Strategy(ABC):
         print(f"------------------------------------------------------------------------------------------------------------")
         return generated_prompts, total_tokens
 
+    def generate_manual_prompts(self, user_prompts, best_of_n, temperature, max_tokens=16384):
+        ...
+
 class HypothesisStrategy(Strategy):
     def __init__(self, llm):
         prompt_strategy = "Do NOT solve the problem. Provide a hypothesis for how to solve this problem."
@@ -91,4 +94,9 @@ class ReasoningStructureStrategy(Strategy):
 class CountdownStrategy(Strategy):
     def __init__(self, llm):
         prompt_strategy = "Do NOT solve the problem. Provide the strategies for Countdown to solve this problem."
+        super().__init__(llm, prompt_strategy)
+
+class UserStrategy(Strategy):
+    def __init__(self, llm):
+        prompt_strategy = ""
         super().__init__(llm, prompt_strategy)
