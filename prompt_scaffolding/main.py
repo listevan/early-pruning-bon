@@ -11,11 +11,11 @@ import sys
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 100
+num_examples = 10
 
 # model hyperparameters
 temperature = 0.9
-best_of_ns = [1,2,4,8,16] # 32 is way too large for A40 right now...
+best_of_ns = [8]#,8,16] # 32 is way too large for A40 right now...
 model="Qwen/Qwen3-0.6B"
 
 # initialize model
@@ -65,7 +65,8 @@ for i, request_output in enumerate(outputs):
 
             # score the answer
             score = data.score_answer(answer=candidate_text, entry=data[i])
-            
+            import pdb; pdb.set_trace()
+
             # compare to see if it's the best solution
             if score > best_score_for_task:
                 best_score_for_task = score
@@ -78,11 +79,14 @@ for i, request_output in enumerate(outputs):
         # store number of tokens used in total for task
         tokens_per_n[best_of_n].append(total_num_tokens)
 
-        
+from datetime import datetime
+now = datetime.now()
+formatted_datetime = now.strftime("%Y-%m-%d-%H-%M")
+
 # save results to file
 for best_of_n in best_of_ns:
-    filename = f"{model.replace('.', '_').replace('/', '_')}_n={best_of_n}_t={temperature}_{dataset_type}_n={num_examples}_{strategy_name}.txt"
+    filename = f"{model.replace('.', '_').replace('/', '_')}_n={best_of_n}_t={temperature}_{dataset_type}_n={num_examples}_{strategy_name}_{formatted_datetime}.txt"
     with open(filename, "w") as f:
         f.write("\n".join(results_per_n[best_of_n]))
     
-    print(f"best_of_{best_of_n} score is: {float(sum(scores_per_n[best_of_n])) / len(outputs)} annd used average token count of: {float(sum(tokens_per_n[best_of_n])) / len(outputs)}")
+    print(f"best_of_{best_of_n} score is: {float(sum(scores_per_n[best_of_n])) / len(outputs)} and used average token count of: {float(sum(tokens_per_n[best_of_n])) / len(outputs)}")
