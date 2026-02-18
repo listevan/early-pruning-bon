@@ -6,12 +6,13 @@ import re
 import random
 import sys
 
+# TODO: try removing formatting instruction, try bringing formatting instruction to end (maybe), run on 100 examples
 # TODO: use user ideas or information (simple and lightweight 8 ideas, maybe solution to countdown level 3) to bias the model and also compare solutions to diverse best-of-8 approach and non-scaffolding best of 8
 
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 5
+num_examples = 100
 
 # model hyperparameters
 temperature = 0.9
