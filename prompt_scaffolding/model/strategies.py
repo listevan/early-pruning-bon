@@ -20,17 +20,17 @@ class Strategy(ABC):
     def generate_prompts(self, user_prompts, best_of_n, temperature, max_tokens=16384, max_plan_tokens=1000):
         total_tokens = 0
 
-        print(f"best_of_n: {best_of_n}")
+        # print(f"best_of_n: {best_of_n}")
         # generate random number for random question to print
         random_question = random.randrange(len(user_prompts))
-        print(f"results for a random question {random_question}")
+        # print(f"results for a random question {random_question}")
 
         # format prompts for qwen, define system prompt with strategy text
         # add tags (plan, sol, answer) and stop at plan tag
         prompts = [
             [
                 {"role": "system", "content": r"use <plan></plan>, <solution></solution>, <answer></answer> tags to structure your answer."}, 
-                {"role": "user", "content": self.prompt_strategy} # + user_prompt[0]['content']}
+                {"role": "user", "content": "Do not say anything about formatting" +self.prompt_strategy} # + user_prompt[0]['content']}
             ] for user_prompt in user_prompts
         ]
  
@@ -59,7 +59,7 @@ class Strategy(ABC):
                 request_prompts.append(text)
             # and separate with a new line
             generated_prompts.append(request_prompts) 
-        print(f"original plans are: {generated_prompts[random_question]}")
+        # print(f"original plans are: {generated_prompts[random_question]}")
 
         # create sampling params for model to determine if it's unique
         sampling_params = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=max_tokens)
@@ -76,23 +76,16 @@ class Strategy(ABC):
         # return the prompts but as a list (questions) of lists (unique prompts)
         indexes = []
         for output in outputs:
-            for text in re.findall(r'\d+\.?', self._extract_content(output.outputs[0].text)):
-                if "." in text:
-                    print("Text OG:", text, "->", text[:-1], end="")
-                    print("Text2int:", "->", int(text[:-1]))
-            indexes_2_int = [int(text[:-1]) for text in re.findall(r'\d+\.?', self._extract_content(output.outputs[0].text) if "." in text else int(text))]
+            indexes_2_int = [int(t.replace(".", "")) for t in re.findall(r'\d+\.?', self._extract_content(output.outputs[0].text))] 
             indexes.append(set(indexes_2_int))
 
-        # import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
 
         generated_diverse_prompts = [[generated_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(generated_prompts[i])] for i, diverse_indexes in enumerate(indexes)]
-        print(f"diverse plans are: {generated_diverse_prompts[random_question]}")
-        print(f"------------------------------------------------------------------------------------------------------------")
+        # print(f"diverse plans are: {generated_diverse_prompts[random_question]}")
+        # print(f"------------------------------------------------------------------------------------------------------------")
         
         return generated_diverse_prompts, total_tokens # (100, 1), total_tokens
-
-    def generate_manual_prompts(self, user_prompts, best_of_n, temperature, max_tokens=16384):
-        ...
 
 class HypothesisStrategy(Strategy):
     def __init__(self, llm):
@@ -118,4 +111,23 @@ class CountdownStrategy(Strategy):
     def __init__(self, llm):
         prompt_strategy = "Provide the strategies to solve a Countdown problem (use basic arithmetic to combine six selected numbers in order to calculate a randomly generated target)."
         super().__init__(llm, prompt_strategy)
+
+class UserStrategy(Strategy):
+    def __init(self, llm):
+        super().__init__(llm, "")
     
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_tokens=16384, max_plan_tokens=1000):
+        # need to fill in with user created prompts
+        new_prompts = [
+            [
+                "Identify the mathematical factors of the target value to guide your operations. Multiply two smaller tile combinations together to reach one of these specific factor multiples.",
+                "Calculate a product that lands slightly above or below the ultimate target. Add or subtract the exact remaining difference using your leftover tiles.",
+                "Start directly from the target goal and apply reverse arithmetic operations. Continue this backward deduction until you successfully match the available starting tiles.",
+                "Program a computer script to systematically generate every possible equation tree. Evaluate each generated recursive path until the correct target value successfully appears.",
+                "Subtract a tile from an identical tile to create a zero, or divide identical tiles to create a one. Apply these neutral values to discard unwanted tiles without altering your current total.",
+                "Multiply your largest available tiles together first to establish a heavy baseline. Adjust this baseline incrementally downward using your remaining smaller tiles.",
+                "Group all starting tiles into distinct pairs and calculate their initial sums or products. Combine these newly formed subtotal groups together to build toward the final goal.",
+                "Locate a single tile that perfectly matches the gap between a reachable milestone and your target. Set this specific tile aside safely until the very final addition or subtraction step."
+            ]
+        ] * len(user_prompts)
+        return new_prompts

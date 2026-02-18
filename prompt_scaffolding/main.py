@@ -11,11 +11,11 @@ import sys
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 10
+num_examples = 5
 
 # model hyperparameters
 temperature = 0.9
-best_of_ns = [8]#,8,16] # 32 is way too large for A40 right now...
+best_of_ns = [8]# [1,2,4,8,16] # 32 is way too large for A40 right now...
 model="Qwen/Qwen3-0.6B"
 
 # initialize model
@@ -49,12 +49,13 @@ for i, request_output in enumerate(outputs):
         # get the best score from the selected candidate solutions
         best_score_for_task = -1
         best_response_text = ""
+        best_prompt = ""
         best_num_tokens = -1
         
         # get the total number of tokens used for this question
         total_num_tokens = 0
 
-        for candidate in selected_candidates:
+        for prompt, candidate in zip(selected_candidates["prompts"], selected_candidates["responses"]):
             # get number of tokens and intermediate tokens
             num_tokens = len(candidate.token_ids)
             total_num_tokens += num_tokens + intermediate_tokens[best_of_n]
@@ -65,16 +66,17 @@ for i, request_output in enumerate(outputs):
 
             # score the answer
             score = data.score_answer(answer=candidate_text, entry=data[i])
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
 
             # compare to see if it's the best solution
             if score > best_score_for_task:
                 best_score_for_task = score
                 best_response_text = candidate_text
+                best_prompt = prompt
         
         # store best results
         scores_per_n[best_of_n].append(best_score_for_task)
-        results_per_n[best_of_n].append(f"Task {i}, Num Tokens: {total_num_tokens}, Score: {best_score_for_task}\n------------------------\nQuestion {data[i]['question']}\n------------------------\nResponse {best_response_text}\n-------------------------------------------")
+        results_per_n[best_of_n].append(f"Task {i}, Num Tokens: {total_num_tokens}, Score: {best_score_for_task}\n------------------------\nQuestion {best_prompt[0]["content"]}\n------------------------\nResponse {best_response_text}\n-------------------------------------------")
 
         # store number of tokens used in total for task
         tokens_per_n[best_of_n].append(total_num_tokens)

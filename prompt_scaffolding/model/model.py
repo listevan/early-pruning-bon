@@ -40,10 +40,10 @@ class Model:
                     
                     # store the results, if its the first iteration append to organized_outputs
                     if i == 0:
-                        organized_outputs.append({best_of_n: [request_output.outputs[0] for request_output in outputs]})
+                        organized_outputs.append({best_of_n: {"responses": [request_output.outputs[0] for request_output in outputs], "prompts": formatted_variants}})
                     # otherwise just add the best_of n results
                     else:
-                        organized_outputs[j][best_of_n] = [request_output.outputs[0] for request_output in outputs]
+                        organized_outputs[j][best_of_n] = {"responses": [request_output.outputs[0] for request_output in outputs], "prompts": formatted_variants}
 
             return organized_outputs, organized_total_tokens
         else:
@@ -53,7 +53,9 @@ class Model:
 
             # loop through questions to create a dictionary for each of the best_of_n results
             organized_outputs = []
-            for i, request_output in enumerate(outputs):
-                organized_outputs.append({best_of_n: random.sample(request_output.outputs, best_of_n) for best_of_n in best_of_ns})
+            for best_of_n in best_of_ns:
+                for i, request_output in enumerate(outputs):
+                    selected = random.sample(range(max(best_of_ns)), best_of_n)
+                    organized_outputs.append({best_of_n: {"responses": [request_output.outputs[select] for select in selected], "prompts": prompts[i]*best_of_n}})
 
             return organized_outputs, None

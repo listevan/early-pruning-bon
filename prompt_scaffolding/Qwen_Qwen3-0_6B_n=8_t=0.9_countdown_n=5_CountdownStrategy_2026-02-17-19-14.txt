@@ -1,0 +1,90 @@
+Task 0, Num Tokens: 61124, Score: 1.0
+------------------------
+Question Calculate 114 using all of these numbers: 18, 32, 36, 4, 29, 95.
+Each number may be used at most once.
+
+Final answer format instructions:
+1. Provide your solution as a arithmetic expression (no '=' sign).
+2. Do not include the target number in the expression.
+3. Use '*' for multiplication.
+4. Use '/' for division.
+5. Do not include any other text or formatting.
+
+------------------------
+Response ((95 - 32) + 29 + 36 + 4) - 18
+-------------------------------------------
+Task 1, Num Tokens: 6690, Score: 0.01
+------------------------
+Question Using all the numbers 75, 38, 8, 24, 8, 22, create an expression that equals 692.
+You can only use each number once.
+
+Final answer format instructions:
+1. Provide your solution as a arithmetic expression (no '=' sign).
+2. Do not include the target number in the expression.
+3. Use '*' for multiplication.
+4. Use '/' for division.
+5. Do not include any other text or formatting.
+
+------------------------
+Response 75 × 8 + 22 + 38 + 24 + 8
+-------------------------------------------
+Task 2, Num Tokens: 63146, Score: 1.0
+------------------------
+Question Calculate 152 using all of these numbers: 37, 27, 3, 84, 5, 80.
+Each number may be used at most once.
+
+Final answer format instructions:
+1. Provide your solution as a arithmetic expression (no '=' sign).
+2. Do not include the target number in the expression.
+3. Use '*' for multiplication.
+4. Use '/' for division.
+5. Do not include any other text or formatting.
+
+------------------------
+Response 84 + (80 - (37 - 27 - 3 + 5))
+-------------------------------------------
+Task 3, Num Tokens: 65539, Score: 0.05
+------------------------
+Question Calculate 719 using all of these numbers: 27, 48, 64, 20, 81, 45.
+Each number may be used at most once.
+
+Final answer format instructions:
+1. Provide your solution as a arithmetic expression (no '=' sign).
+2. Do not include the target number in the expression.
+3. Use '*' for multiplication.
+4. Use '/' for division.
+5. Do not include any other text or formatting.
+
+------------------------
+Response 81 * 45 - 64 - 27 - 48 - 20
+-------------------------------------------
+Task 4, Num Tokens: 50770, Score: 0.01
+------------------------
+Question Using all the numbers 7, 17, 49, 6, 26, 14, create an expression that equals 468.
+You can only use each number once.
+
+Final answer format instructions:
+1. Provide your solution as a arithmetic expression (no '=' sign).
+2. Do not include the target number in the expression.
+3. Use '*' for multiplication.
+4. Use '/' for division.
+5. Do not include any other text or formatting.
+
+------------------------
+Response Using all the numbers 7, 17, 49, 6, 26, and 14 to create an arithmetic expression that equals 468:
+
+$$
+(26 \times 17) - (14 + 6) + (49 - 7)
+$$
+
+**Verification**:
+- $26 \times 17 = 442$
+- $14 + 6 = 20$
+- $49 - 7 = 42$
+- $442 - 20 + 42 = 464$
+
+**Final Answer**:
+$$
+\boxed{(26 \times 17) - (14 + 6) + (49 - 7)}
+$$
+-------------------------------------------
