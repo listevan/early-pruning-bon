@@ -79,8 +79,6 @@ class Strategy(ABC):
             indexes_2_int = [int(t.replace(".", "")) for t in re.findall(r'\d+\.?', self._extract_content(output.outputs[0].text))] 
             indexes.append(set(indexes_2_int))
 
-        import pdb; pdb.set_trace()
-
         generated_diverse_prompts = [[generated_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(generated_prompts[i])] for i, diverse_indexes in enumerate(indexes)]
         # print(f"diverse plans are: {generated_diverse_prompts[random_question]}")
         # print(f"------------------------------------------------------------------------------------------------------------")

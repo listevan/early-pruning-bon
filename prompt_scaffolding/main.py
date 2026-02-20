@@ -12,7 +12,7 @@ import sys
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 100
+num_examples = 5
 
 # model hyperparameters
 temperature = 0.9
@@ -36,6 +36,21 @@ outputs, intermediate_tokens = Model.generate_responses(llm, prompts, best_of_ns
 results_per_n = {n: [] for n in best_of_ns}
 scores_per_n = {n: [] for n in best_of_ns}
 tokens_per_n = {n: [] for n in best_of_ns}
+
+def clean_math_string(line):
+    # 1. Remove \boxed{ and the closing }
+    # This looks for the literal string "\boxed{" and "}" and removes them
+    line = re.sub(r'\\boxed\{', '', line)
+    line = re.sub(r'\}', '', line)
+    
+    # 2. Replace LaTeX operators with standard symbols
+    line = line.replace(r'\times', '*')
+    line = line.replace(r'\cdot', '*')
+    line = line.replace(r'\div', '/')
+    line = line.replace(r'\frac', '/')
+    
+    # 3. Clean up extra whitespace
+    return line.strip()
 
 # loop through the different countdown questions
 for i, request_output in enumerate(outputs):
@@ -65,9 +80,25 @@ for i, request_output in enumerate(outputs):
             match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", candidate.text, re.DOTALL)
             candidate_text = match.group(1) if match else candidate.text
 
+            # print(f"===\nFor candidate, found best match : {}\n")
+            
             # score the answer
             score = data.score_answer(answer=candidate_text, entry=data[i])
-            # import pdb; pdb.set_trace()
+            target_number = data[i]['metadata']['target']
+            ground_truth_expr = data[i]['metadata']['expression'] # 3 + 56 - 10 / 8 + 43
+            ground_truth_num_list = data[i]['metadata']['numbers'] # [3, 56, 10, 43, 8]
+            if score < 1:
+                lines = candidate_text.strip().split('\n')
+                for line in reversed(lines):
+                    match = re.findall(r'\d+', line)
+                    if 3 <= len(match) <= 6 and ("*" in line or "/" in line or "+" in line or "-" in line or ("(" in line and ")" in line) or "\\times" in line or "\\boxed" in line):
+                        clean_line = clean_math_string(line)
+                        new_score = data.score_answer(answer=line, entry=data[i])
+                        # print("\n\n\n\n\n")
+                        # print(candidate_text)
+                        # print(f"\n===>>>\n\t Reduced:: {line} --> {clean_line}, where TARGET is: {target_number} \n \tFound our number line: {match} with new score: {new_score} vs old score: {score} ===<<<\n")
+                        # print("\n\n\n\n\n")
+                        break
 
             # compare to see if it's the best solution
             if score > best_score_for_task:
