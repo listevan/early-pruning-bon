@@ -5,6 +5,7 @@ import random
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
 
+# TODO: track how many tokens are chosen and take average
 class Strategy(ABC):
     def __init__(self, llm, prompt_strategy):
         self.llm = llm
@@ -92,7 +93,7 @@ class HypothesisStrategy(Strategy):
 
 class PlanStrategy(Strategy):
     def __init__(self, llm):
-        prompt_strategy = "Do NOT solve the problem. Provide a plan to solve this problem."
+        prompt_strategy = "Do NOT solve the problem. Provide a plan to solve this problem." # TODO: more detail, maybe try to directly ask for 8 unique plans instead of sampling with n
         super().__init__(llm, prompt_strategy)
 
 class ConceptStrategy(Strategy):

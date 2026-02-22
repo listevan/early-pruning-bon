@@ -4,6 +4,7 @@ from vllm import LLM, SamplingParams
 import random
 import sys
 
+# TODO: control generation with <answer></answer> token
 class Model:
     def __init__(self, model_name: str):
         self.llm = LLM(model=model_name, tensor_parallel_size=1)

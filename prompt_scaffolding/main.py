@@ -6,13 +6,21 @@ import re
 import random
 import sys
 
-# TODO: try removing formatting instruction, try bringing formatting instruction to end (maybe), run on 100 examples
-# TODO: use user ideas or information (simple and lightweight 8 ideas, maybe solution to countdown level 3) to bias the model and also compare solutions to diverse best-of-8 approach and non-scaffolding best of 8
+# TODO: set seed for vllm, save everything (intermediate steps like the prompts, selections/indexes), plot score vs token counts, try user strategy, maybe try skipping structure outputs
+# "\n\nProvide your solution as a arithmetic expression (no '=' sign).\n"
+#         "2. Do not include the target number in the expression.\n"
+#         "3. Use '*' for multiplication.\n"
+#         "4. Use '/' for division.\n"
+#         # "5.\n\n"
+#         # "Additional format requirements:\n"
+#         # "Show your thinking in <think> your reasoning here </think> followed by the final answer in <answer></answer>.\n"
+#         # "Do not include any other text or formatting for the final answer."
+#     )
 
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 5
+num_examples = 10
 
 # model hyperparameters
 temperature = 0.9
