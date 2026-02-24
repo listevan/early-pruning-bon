@@ -112,11 +112,12 @@ class CountdownStrategy(Strategy):
         super().__init__(llm, prompt_strategy)
 
 class UserStrategy(Strategy):
-    def __init(self, llm):
+    def __init__(self, llm):
         super().__init__(llm, "")
     
     def generate_prompts(self, user_prompts, best_of_n, temperature, max_tokens=16384, max_plan_tokens=1000):
         # need to fill in with user created prompts
+        tokenizer = self.llm.get_tokenizer()
         new_prompts = [
             [
                 "Identify the mathematical factors of the target value to guide your operations. Multiply two smaller tile combinations together to reach one of these specific factor multiples.",
@@ -129,4 +130,15 @@ class UserStrategy(Strategy):
                 "Locate a single tile that perfectly matches the gap between a reachable milestone and your target. Set this specific tile aside safely until the very final addition or subtraction step."
             ]
         ] * len(user_prompts)
-        return new_prompts
+        
+        new_prompts_tokenlens = [
+            29,
+            25,
+            25,
+            25,
+            26,
+            25,
+            29,
+            33
+        ]
+        return new_prompts, sum(new_prompts_tokenlens)

@@ -20,7 +20,7 @@ import sys
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 10
+num_examples = 100
 
 # model hyperparameters
 temperature = 0.9
@@ -30,15 +30,18 @@ model="Qwen/Qwen3-0.6B"
 # initialize model
 llm = Model(model)
 # model strategy, set to None if not using
-strategy = CountdownStrategy(llm=llm.llm)
-strategy_name = "CountdownStrategy"
+# strategy_name = "UserStrategy"
+# strategy = UserStrategy(llm=llm.llm)
+
+# strategy_name = "CountdownStrategy"
+strategy = None # CountdownStrategy(llm=llm.llm)
 
 data = reasoning_gym.create_dataset(dataset_type, size=num_examples, seed=42, min_numbers=level, max_numbers=level)
 # load the questions
 prompts = [entry["question"] for entry in data]
 
 # generate responses
-outputs, intermediate_tokens = Model.generate_responses(llm, prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy)
+outputs, intermediate_tokens = Model.generate_responses(llm, prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384)
 
 # initialize result dictionaries
 results_per_n = {n: [] for n in best_of_ns}
@@ -59,6 +62,17 @@ def clean_math_string(line):
     
     # 3. Clean up extra whitespace
     return line.strip()
+
+def extract_answer(text):
+    # Pattern looks for everything between <answer> and </answer>
+    # re.DOTALL allows the dot (.) to match newlines if the answer is multi-line
+    match = re.search(r'<answer>(.*?)</answer>', text, re.DOTALL)
+    
+    if match:
+        return match.group(1).strip()
+    
+    # If no tags exist, return the original string
+    return text
 
 # loop through the different countdown questions
 for i, request_output in enumerate(outputs):
@@ -87,6 +101,8 @@ for i, request_output in enumerate(outputs):
             # remove <think></think> tags to get solution
             match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", candidate.text, re.DOTALL)
             candidate_text = match.group(1) if match else candidate.text
+            
+            candidate_text = extract_answer(candidate_text)
 
             # print(f"===\nFor candidate, found best match : {}\n")
             
@@ -127,7 +143,7 @@ formatted_datetime = now.strftime("%Y-%m-%d-%H-%M")
 
 # save results to file
 for best_of_n in best_of_ns:
-    filename = f"{model.replace('.', '_').replace('/', '_')}_n={best_of_n}_t={temperature}_{dataset_type}_n={num_examples}_{strategy_name}_{formatted_datetime}.txt"
+    filename = f"{model.replace('.', '_').replace('/', '_')}_{formatted_datetime}_n={best_of_n}_t={temperature}_{dataset_type}_n={num_examples}_{strategy_name}.txt"
     with open(filename, "w") as f:
         f.write("\n".join(results_per_n[best_of_n]))
     
