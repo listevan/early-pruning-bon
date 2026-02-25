@@ -1,4 +1,4 @@
-with open("/u/stevex2/prompt_scaffolding/CS497/prompt_scaffolding/Qwen_Qwen3-0_6B_2026-02-23-15-31_n=8_t=0.9_countdown_n=100_UserStrategy.txt", 'r') as f:
+with open("/u/stevex2/prompt_scaffolding/CS497/prompt_scaffolding/Qwen_Qwen3-0_6B_2026-02-24-18-00_n=8_t=0.9_countdown_n=100_CountdownStrategy.txt", 'r') as f:
     total_score = 0
     total_puzzles = 0
     for line in f:

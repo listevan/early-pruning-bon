@@ -33,7 +33,7 @@ llm = Model(model)
 # strategy_name = "UserStrategy"
 # strategy = UserStrategy(llm=llm.llm)
 
-# strategy_name = "CountdownStrategy"
+strategy_name = "None" # "CountdownStrategy"
 strategy = None # CountdownStrategy(llm=llm.llm)
 
 data = reasoning_gym.create_dataset(dataset_type, size=num_examples, seed=42, min_numbers=level, max_numbers=level)
@@ -132,7 +132,7 @@ for i, request_output in enumerate(outputs):
         
         # store best results
         scores_per_n[best_of_n].append(best_score_for_task)
-        results_per_n[best_of_n].append(f"Task {i}, Num Tokens: {total_num_tokens}, Score: {best_score_for_task}\n------------------------\nQuestion {best_prompt[0]["content"]}\n------------------------\nResponse {best_response_text}\n-------------------------------------------")
+        results_per_n[best_of_n].append(f"Task {i}, Num Tokens: {total_num_tokens}, Score: {best_score_for_task}\n------------------------\nQuestion {best_prompt[0]["content"] if strategy else best_prompt}\n------------------------\nResponse {best_response_text}\n-------------------------------------------")
 
         # store number of tokens used in total for task
         tokens_per_n[best_of_n].append(total_num_tokens)
@@ -148,3 +148,4 @@ for best_of_n in best_of_ns:
         f.write("\n".join(results_per_n[best_of_n]))
     
     print(f"best_of_{best_of_n} score is: {float(sum(scores_per_n[best_of_n])) / len(outputs)} and used average token count of: {float(sum(tokens_per_n[best_of_n])) / len(outputs)}")
+    f.write(f"best_of_{best_of_n} score is: {float(sum(scores_per_n[best_of_n])) / len(outputs)} and used average token count of: {float(sum(tokens_per_n[best_of_n])) / len(outputs)}")

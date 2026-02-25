@@ -60,13 +60,14 @@ class Model:
             # if not use user hyperparameters to generate results from prompt
             sampling_params = SamplingParams(n=max(best_of_ns), temperature=temperature, top_p=0.95, max_tokens=max_tokens)
             print(prompts)
-            outputs = self.llm.chat(prompts, sampling_params=sampling_params)
+            outputs = self.llm.chat([[{"role": "user", "content": prompt}] for prompt in prompts], sampling_params=sampling_params)
 
             # loop through questions to create a dictionary for each of the best_of_n results
             organized_outputs = []
+            interm_tokens = dict()
             for best_of_n in best_of_ns:
                 for i, request_output in enumerate(outputs):
                     selected = random.sample(range(max(best_of_ns)), best_of_n)
-                    organized_outputs.append({best_of_n: {"responses": [request_output.outputs[select] for select in selected], "prompts": prompts[i]*best_of_n}})
-
-            return organized_outputs, None
+                    organized_outputs.append({best_of_n: {"responses": [request_output.outputs[select] for select in selected], "prompts": [prompts[i]]*best_of_n}})
+                interm_tokens[best_of_n] = 0
+            return organized_outputs, interm_tokens 
