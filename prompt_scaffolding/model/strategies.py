@@ -130,4 +130,4 @@ class UserStrategy(Strategy):
             ]
         ] * len(user_prompts)
 
-        return {"generated_prompts": new_prompts, "indexes": range(len(new_prompts), "generated_diverse_prompts": new_prompts, "total_tokens": 0}
+        return {"generated_prompts": new_prompts, "indexes": range(len(new_prompts)), "generated_diverse_prompts": new_prompts, "total_tokens": 0}

@@ -23,7 +23,7 @@ import json
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 100
+num_examples = 10
 
 # model hyperparameters
 temperature = 0.9
@@ -128,5 +128,5 @@ for best_of_n in best_of_ns:
 
     print(f"best_of_{best_of_n} score is: {float(sum(result[0] for result in outputs[best_of_n]["results"])) / len(outputs)} and used average token count of: {float(sum(outputs[best_of_n]["total_tokens"])) / len(outputs)}")
 
-with open(f"{}_bon_{"_".join(best_of_ns)}.json", "w") as f:
+with open(f"{datetime.datetime.now()}_bon_{"_".join(best_of_ns)}.json", "w") as f:
     json.dumps(outputs, indent=4)
