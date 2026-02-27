@@ -5,7 +5,6 @@ import random
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
 
-# TODO: track how many tokens are chosen and take average
 class Strategy(ABC):
     def __init__(self, llm, prompt_strategy):
         self.llm = llm
@@ -84,7 +83,7 @@ class Strategy(ABC):
         # print(f"diverse plans are: {generated_diverse_prompts[random_question]}")
         # print(f"------------------------------------------------------------------------------------------------------------")
         
-        return generated_diverse_prompts, total_tokens # (100, 1), total_tokens
+        return {"generated_prompts": generated_prompts, "indexes": indexes, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
 
 class HypothesisStrategy(Strategy):
     def __init__(self, llm):
@@ -130,15 +129,5 @@ class UserStrategy(Strategy):
                 "Locate a single tile that perfectly matches the gap between a reachable milestone and your target. Set this specific tile aside safely until the very final addition or subtraction step."
             ]
         ] * len(user_prompts)
-        
-        new_prompts_tokenlens = [
-            29,
-            25,
-            25,
-            25,
-            26,
-            25,
-            29,
-            33
-        ]
-        return new_prompts, sum(new_prompts_tokenlens)
+
+        return {"generated_prompts": new_prompts, "indexes": range(len(new_prompts), "generated_diverse_prompts": new_prompts, "total_tokens": 0}

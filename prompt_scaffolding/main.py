@@ -6,6 +6,9 @@ import re
 import random
 import sys
 
+import datetime
+import json
+
 # TODO: set seed for vllm, save everything (intermediate steps like the prompts, selections/indexes), plot score vs token counts, try user strategy, maybe try skipping structure outputs
 # "\n\nProvide your solution as a arithmetic expression (no '=' sign).\n"
 #         "2. Do not include the target number in the expression.\n"
@@ -41,12 +44,7 @@ data = reasoning_gym.create_dataset(dataset_type, size=num_examples, seed=42, mi
 prompts = [entry["question"] for entry in data]
 
 # generate responses
-outputs, intermediate_tokens = Model.generate_responses(llm, prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384)
-
-# initialize result dictionaries
-results_per_n = {n: [] for n in best_of_ns}
-scores_per_n = {n: [] for n in best_of_ns}
-tokens_per_n = {n: [] for n in best_of_ns}
+outputs = Model.generate_responses(llm, prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384)
 
 def clean_math_string(line):
     # 1. Remove \boxed{ and the closing }
@@ -74,16 +72,14 @@ def extract_answer(text):
     # If no tags exist, return the original string
     return text
 
-# loop through the different countdown questions
-for i, request_output in enumerate(outputs):
-    # import pdb; pdb.set_trace()
-    # get all of the n results for question i
-    
-    # loop through best_of_n
-    for best_of_n in best_of_ns:
-        # get the best_of_n result from the candidates
-        selected_candidates = request_output[best_of_n]
-        
+# loop through best_of_n
+for best_of_n in best_of_ns:
+    # loop through the different countdown questions
+    bon_outputs = outputs[best_of_n]
+    outputs[best_of_n]["results"] = []
+    outputs[best_of_n]["questions"] = prompts
+
+    for i, request_outputs in enumerate(bon_outputs["responses"]):            
         # get the best score from the selected candidate solutions
         best_score_for_task = -1
         best_response_text = ""
@@ -93,15 +89,10 @@ for i, request_output in enumerate(outputs):
         # get the total number of tokens used for this question
         total_num_tokens = 0
 
-        for prompt, candidate in zip(selected_candidates["prompts"], selected_candidates["responses"]):
-            # get number of tokens and intermediate tokens
-            num_tokens = len(candidate.token_ids)
-            total_num_tokens += num_tokens + intermediate_tokens[best_of_n]
-            
+        for prompt, candidate in zip(bon_outputs["generated_diverse_prompts"], request_outputs):
             # remove <think></think> tags to get solution
             match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", candidate.text, re.DOTALL)
-            candidate_text = match.group(1) if match else candidate.text
-            
+            candidate_text = match.group(1) if match else candidate.text  
             candidate_text = extract_answer(candidate_text)
 
             # print(f"===\nFor candidate, found best match : {}\n")
@@ -117,12 +108,14 @@ for i, request_output in enumerate(outputs):
                     match = re.findall(r'\d+', line)
                     if 3 <= len(match) <= 6 and ("*" in line or "/" in line or "+" in line or "-" in line or ("(" in line and ")" in line) or "\\times" in line or "\\boxed" in line):
                         clean_line = clean_math_string(line)
-                        new_score = data.score_answer(answer=line, entry=data[i])
+                        score = data.score_answer(answer=line, entry=data[i])
                         # print("\n\n\n\n\n")
                         # print(candidate_text)
                         # print(f"\n===>>>\n\t Reduced:: {line} --> {clean_line}, where TARGET is: {target_number} \n \tFound our number line: {match} with new score: {new_score} vs old score: {score} ===<<<\n")
                         # print("\n\n\n\n\n")
                         break
+                if score != 1:
+                    score = 0
 
             # compare to see if it's the best solution
             if score > best_score_for_task:
@@ -131,21 +124,9 @@ for i, request_output in enumerate(outputs):
                 best_prompt = prompt
         
         # store best results
-        scores_per_n[best_of_n].append(best_score_for_task)
-        results_per_n[best_of_n].append(f"Task {i}, Num Tokens: {total_num_tokens}, Score: {best_score_for_task}\n------------------------\nQuestion {best_prompt[0]["content"] if strategy else best_prompt}\n------------------------\nResponse {best_response_text}\n-------------------------------------------")
+        outputs[best_of_n]["results"].append((best_prompt, best_response_text, best_score_for_task))
 
-        # store number of tokens used in total for task
-        tokens_per_n[best_of_n].append(total_num_tokens)
+    print(f"best_of_{best_of_n} score is: {float(sum(result[0] for result in outputs[best_of_n]["results"])) / len(outputs)} and used average token count of: {float(sum(outputs[best_of_n]["total_tokens"])) / len(outputs)}")
 
-from datetime import datetime
-now = datetime.now()
-formatted_datetime = now.strftime("%Y-%m-%d-%H-%M")
-
-# save results to file
-for best_of_n in best_of_ns:
-    filename = f"{model.replace('.', '_').replace('/', '_')}_{formatted_datetime}_n={best_of_n}_t={temperature}_{dataset_type}_n={num_examples}_{strategy_name}.txt"
-    with open(filename, "w") as f:
-        f.write("\n".join(results_per_n[best_of_n]))
-        f.write(f"best_of_{best_of_n} score is: {float(sum(scores_per_n[best_of_n])) / len(outputs)} and used average token count of: {float(sum(tokens_per_n[best_of_n])) / len(outputs)}")
-    
-    print(f"best_of_{best_of_n} score is: {float(sum(scores_per_n[best_of_n])) / len(outputs)} and used average token count of: {float(sum(tokens_per_n[best_of_n])) / len(outputs)}")
+with open(f"{}_bon_{"_".join(best_of_ns)}.json", "w") as f:
+    json.dumps(outputs, indent=4)
