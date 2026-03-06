@@ -29,7 +29,7 @@ class Model:
             for i, best_of_n in enumerate(best_of_ns):
                 # if so, use the strategy to generate a set of diverse prompts (from the original best_of_n), ignore formatting part of the prompt
                 organized_outputs[best_of_n] = strategy.generate_prompts([[{"role": "user", "content": prompt.split("\n")[0]}] for prompt in prompts], best_of_n, temperature)
-                new_request_prompts, total_tokens = organized_outputs[best_of_n]["new_request_prompts"], organized_outputs[best_of_n]["total_tokens"]
+                new_request_prompts = organized_outputs[best_of_n]["generated_diverse_prompts"]
 
                 organized_outputs[best_of_n]["responses"] = []
                 
@@ -60,11 +60,11 @@ class Model:
             organized_outputs = {}
             
             for best_of_n in best_of_ns:
-                organized_outputs[best_of_ns] = {"generated_prompts": [], "indexes": [], "generated_diverse_prompts": [], "total_tokens": 0, "responses": []}
+                organized_outputs[best_of_n] = {"generated_prompts": [], "indexes": [], "generated_diverse_prompts": [], "total_tokens": 0, "responses": []}
 
                 for i, request_output in enumerate(outputs):
                     selected = random.sample(range(max(best_of_ns)), best_of_n)
                     organized_outputs[best_of_n]["responses"].append([request_output.outputs[select] for select in selected])
-                    organized_outputs[best_of_n]["total_tokens"] += sum(len(bon_output.token_ids) for bon_output in organized_outputs[best_of_n]["responses"])
+                    organized_outputs[best_of_n]["total_tokens"] += sum(len(request_output.token_ids) for bon_output in organized_outputs[best_of_n]["responses"] for request_output in bon_output)
 
             return organized_outputs

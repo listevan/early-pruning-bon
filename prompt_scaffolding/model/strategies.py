@@ -17,14 +17,15 @@ class Strategy(ABC):
             return match.group(1).strip()
         return text.strip()
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_tokens=16384, max_plan_tokens=1000):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000):
         total_tokens = 0
 
         # print(f"best_of_n: {best_of_n}")
         # generate random number for random question to print
         random_question = random.randrange(len(user_prompts))
         # print(f"results for a random question {random_question}")
-
+        
+        # TODO: generate first 256/512 tokens and select from those. put prompt + resulting in llm.generate, select divere and/or most promising ones, maybe hierarchical structure of repeated bon prunings
         # format prompts for qwen, define system prompt with strategy text
         # add tags (plan, sol, answer) and stop at plan tag
         prompts = [
@@ -62,9 +63,10 @@ class Strategy(ABC):
         # print(f"original plans are: {generated_prompts[random_question]}")
 
         # create sampling params for model to determine if it's unique
-        sampling_params = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=max_tokens)
+        sampling_params = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=max_selection_tokens)
 
         # format prompts for qwen with system prompt to tell model of separator and ask for diverse prompts
+        # TODO: use regex tags to force it to output the indexes
         prompts = [[
             {"role": "user", "content": f"Do NOT solve the problem. The following text contains several prompt options, each single prompt option is surrounded by <example> and </example>, Only select the unique approaches and return their number and a period, for example: 3., 4., etc. Separate the results with \\n': {"\n".join([f"<example>{i}. "+request_generated_prompt+"</example>" for i, request_generated_prompt in enumerate(generated_prompt)])}"}
         ] for generated_prompt in generated_prompts]

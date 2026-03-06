@@ -9,25 +9,14 @@ import sys
 import datetime
 import json
 
-# TODO: set seed for vllm, save everything (intermediate steps like the prompts, selections/indexes), plot score vs token counts, try user strategy, maybe try skipping structure outputs
-# "\n\nProvide your solution as a arithmetic expression (no '=' sign).\n"
-#         "2. Do not include the target number in the expression.\n"
-#         "3. Use '*' for multiplication.\n"
-#         "4. Use '/' for division.\n"
-#         # "5.\n\n"
-#         # "Additional format requirements:\n"
-#         # "Show your thinking in <think> your reasoning here </think> followed by the final answer in <answer></answer>.\n"
-#         # "Do not include any other text or formatting for the final answer."
-#     )
-
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 10
+num_examples = 2
 
 # model hyperparameters
 temperature = 0.9
-best_of_ns = [8]# [1,2,4,8,16] # 32 is way too large for A40 right now...
+best_of_ns = [4]# [1,2,4,8,16] # 32 is way too large for A40 right now...
 model="Qwen/Qwen3-0.6B"
 
 # initialize model
@@ -36,15 +25,18 @@ llm = Model(model)
 # strategy_name = "UserStrategy"
 # strategy = UserStrategy(llm=llm.llm)
 
-strategy_name = "None" # "CountdownStrategy"
-strategy = None # CountdownStrategy(llm=llm.llm)
+strategy_name = "CountdownStrategy"
+strategy = CountdownStrategy(llm=llm.llm)
+
+# strategy_name = "None" 
+# strategy = None 
 
 data = reasoning_gym.create_dataset(dataset_type, size=num_examples, seed=42, min_numbers=level, max_numbers=level)
 # load the questions
 prompts = [entry["question"] for entry in data]
 
 # generate responses
-outputs = Model.generate_responses(llm, prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384)
+outputs = Model.generate_responses(llm, prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy)
 
 def clean_math_string(line):
     # 1. Remove \boxed{ and the closing }
@@ -72,6 +64,11 @@ def extract_answer(text):
     # If no tags exist, return the original string
     return text
 
+def vllm_encoder(obj):
+    if hasattr(obj, '__dict__'):
+        return obj.__dict__
+    return str(obj) # Fallback for any weird types inside
+
 # loop through best_of_n
 for best_of_n in best_of_ns:
     # loop through the different countdown questions
@@ -84,12 +81,12 @@ for best_of_n in best_of_ns:
         best_score_for_task = -1
         best_response_text = ""
         best_prompt = ""
-        best_num_tokens = -1
         
         # get the total number of tokens used for this question
         total_num_tokens = 0
 
-        for prompt, candidate in zip(bon_outputs["generated_diverse_prompts"], request_outputs):
+        print(request_outputs)
+        for j, candidate in enumerate(request_outputs):
             # remove <think></think> tags to get solution
             match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", candidate.text, re.DOTALL)
             candidate_text = match.group(1) if match else candidate.text  
@@ -99,34 +96,20 @@ for best_of_n in best_of_ns:
             
             # score the answer
             score = data.score_answer(answer=candidate_text, entry=data[i])
-            target_number = data[i]['metadata']['target']
-            ground_truth_expr = data[i]['metadata']['expression'] # 3 + 56 - 10 / 8 + 43
-            ground_truth_num_list = data[i]['metadata']['numbers'] # [3, 56, 10, 43, 8]
-            if score < 1:
-                lines = candidate_text.strip().split('\n')
-                for line in reversed(lines):
-                    match = re.findall(r'\d+', line)
-                    if 3 <= len(match) <= 6 and ("*" in line or "/" in line or "+" in line or "-" in line or ("(" in line and ")" in line) or "\\times" in line or "\\boxed" in line):
-                        clean_line = clean_math_string(line)
-                        score = data.score_answer(answer=line, entry=data[i])
-                        # print("\n\n\n\n\n")
-                        # print(candidate_text)
-                        # print(f"\n===>>>\n\t Reduced:: {line} --> {clean_line}, where TARGET is: {target_number} \n \tFound our number line: {match} with new score: {new_score} vs old score: {score} ===<<<\n")
-                        # print("\n\n\n\n\n")
-                        break
-                if score != 1:
-                    score = 0
+            if score != 1:
+                score = 0
 
             # compare to see if it's the best solution
             if score > best_score_for_task:
                 best_score_for_task = score
                 best_response_text = candidate_text
-                best_prompt = prompt
+                if bon_outputs["generated_diverse_prompts"]:
+                    best_prompt = bon_outputs["generated_diverse_prompts"][i][j]
         
         # store best results
         outputs[best_of_n]["results"].append((best_prompt, best_response_text, best_score_for_task))
 
-    print(f"best_of_{best_of_n} score is: {float(sum(result[0] for result in outputs[best_of_n]["results"])) / len(outputs)} and used average token count of: {float(sum(outputs[best_of_n]["total_tokens"])) / len(outputs)}")
+    print(f"best_of_{best_of_n} score is: {float(sum(result[2] for result in outputs[best_of_n]["results"])) / num_examples} and used average token count of: {float(outputs[best_of_n]["total_tokens"]) / num_examples}")
 
-with open(f"{datetime.datetime.now()}_bon_{"_".join(best_of_ns)}.json", "w") as f:
-    json.dumps(outputs, indent=4)
+with open(f"{datetime.datetime.now()}_bon_{"_".join(list(map(str, best_of_ns)))}_strategy_{strategy_name}.json", "w") as f:
+    json.dump(outputs, f, indent=4, default=vllm_encoder)
