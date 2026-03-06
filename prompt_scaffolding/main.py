@@ -1,5 +1,5 @@
 from model.model import Model
-from model.strategies import HypothesisStrategy, PlanStrategy, ConceptStrategy, ReasoningStructureStrategy, CountdownStrategy, UserStrategy
+from model.strategies import HypothesisStrategy, PlanStrategy, ConceptStrategy, ReasoningStructureStrategy, CountdownStrategy, UserStrategy, CompletionStrategy
 
 import reasoning_gym
 import re
@@ -8,6 +8,9 @@ import sys
 
 import datetime
 import json
+
+seed = 42
+random.seed(seed)
 
 # dataset hyperparameters
 dataset_type = "countdown"
@@ -20,18 +23,15 @@ best_of_ns = [4]# [1,2,4,8,16] # 32 is way too large for A40 right now...
 model="Qwen/Qwen3-0.6B"
 
 # initialize model
-llm = Model(model)
+llm = Model(model, seed=seed)
+
 # model strategy, set to None if not using
-# strategy_name = "UserStrategy"
-# strategy = UserStrategy(llm=llm.llm)
+# strategy = UserStrategy(llm=llm.llm, seed=seed)
+strategy = CountdownStrategy(llm=llm.llm, seed=seed)
+# strategy = CompletionStrategy(llm=llm.llm, seed=seed)
+# strategy = None
 
-strategy_name = "CountdownStrategy"
-strategy = CountdownStrategy(llm=llm.llm)
-
-# strategy_name = "None" 
-# strategy = None 
-
-data = reasoning_gym.create_dataset(dataset_type, size=num_examples, seed=42, min_numbers=level, max_numbers=level)
+data = reasoning_gym.create_dataset(dataset_type, size=num_examples, min_numbers=level, max_numbers=level, seed=seed)
 # load the questions
 prompts = [entry["question"] for entry in data]
 
@@ -81,11 +81,8 @@ for best_of_n in best_of_ns:
         best_score_for_task = -1
         best_response_text = ""
         best_prompt = ""
-        
-        # get the total number of tokens used for this question
-        total_num_tokens = 0
 
-        print(request_outputs)
+        # print(request_outputs)
         for j, candidate in enumerate(request_outputs):
             # remove <think></think> tags to get solution
             match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", candidate.text, re.DOTALL)
@@ -109,7 +106,7 @@ for best_of_n in best_of_ns:
         # store best results
         outputs[best_of_n]["results"].append((best_prompt, best_response_text, best_score_for_task))
 
-    print(f"best_of_{best_of_n} score is: {float(sum(result[2] for result in outputs[best_of_n]["results"])) / num_examples} and used average token count of: {float(outputs[best_of_n]["total_tokens"]) / num_examples}")
+    print(f"best_of_{best_of_n} score is: {float(sum(result[2] for result in outputs[best_of_n]["results"])) / num_examples} and used average token count of: {float(sum(outputs[best_of_n]["total_tokens"])) / num_examples}")
 
-with open(f"{datetime.datetime.now()}_bon_{"_".join(list(map(str, best_of_ns)))}_strategy_{strategy_name}.json", "w") as f:
+with open(f"{datetime.datetime.now()}_bon_{'_'.join(list(map(str, best_of_ns)))}_strategy_{strategy.name if strategy else "None"}.json", "w") as f:
     json.dump(outputs, f, indent=4, default=vllm_encoder)

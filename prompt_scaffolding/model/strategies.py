@@ -6,7 +6,10 @@ from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
 
 class Strategy(ABC):
-    def __init__(self, llm, prompt_strategy):
+    def __init__(self, llm, prompt_strategy, name="Strategy", seed=42):
+        self.name = name
+        self.seed = seed
+
         self.llm = llm
         self.prompt_strategy = prompt_strategy
 
@@ -17,31 +20,52 @@ class Strategy(ABC):
             return match.group(1).strip()
         return text.strip()
     
+    def _get_diverse_prompts(self, generated_prompts, max_selection_tokens=100):
+        # create sampling params for model to determine if it's unique
+        sampling_params = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=max_selection_tokens, seed=self.seed)
+
+        # format prompts for qwen with system prompt to tell model of separator and ask for diverse prompts
+        # TODO: use regex tags to force it to output the indexes
+        prompts = [[
+            {"role": "user", "content": f"Do NOT solve the problem. The following text contains several prompt options, each single prompt option is surrounded by <example> and </example>, Only select the unique approaches and return their number and a period, for example: 3., 4., etc. Separate the results with \\n': {"\n".join([f"<example>{i}. "+request_generated_prompt+"</example>" for i, request_generated_prompt in enumerate(generated_prompt)])}"}
+        ] for generated_prompt in generated_prompts]
+
+        # get diverse prompts
+        outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
+        total_tokens = [len(request_output.outputs[0].token_ids) for request_output in outputs]
+
+        # return the prompts but as a list (questions) of lists (unique prompts)
+        indexes = []
+        for output in outputs:
+            indexes_2_int = [int(t.replace(".", "")) for t in re.findall(r'\d+\.?', self._extract_content(output.outputs[0].text))] 
+            indexes.append(list(set(indexes_2_int)))
+        
+        return indexes, total_tokens
+    
     def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000):
-        total_tokens = 0
+        total_tokens = []
 
         # print(f"best_of_n: {best_of_n}")
         # generate random number for random question to print
         random_question = random.randrange(len(user_prompts))
         # print(f"results for a random question {random_question}")
         
-        # TODO: generate first 256/512 tokens and select from those. put prompt + resulting in llm.generate, select divere and/or most promising ones, maybe hierarchical structure of repeated bon prunings
         # format prompts for qwen, define system prompt with strategy text
         # add tags (plan, sol, answer) and stop at plan tag
         prompts = [
             [
                 {"role": "system", "content": r"use <plan></plan>, <solution></solution>, <answer></answer> tags to structure your answer."}, 
-                {"role": "user", "content": "Do not say anything about formatting" +self.prompt_strategy} # + user_prompt[0]['content']}
+                {"role": "user", "content": "Do not say anything about formatting" +self.prompt_strategy} # + user_prompt.split("\n\n")[0]}
             ] for user_prompt in user_prompts
         ]
  
         # set up sampling parameters with user given hyperparameters
         custom_tag_regex = r"<plan>[\s\S]*?</plan>" # <solution>[\s\S]*?</solution><answer>[\s\S]*?</answer>"
         structured_params = StructuredOutputsParams(regex=custom_tag_regex)
-        sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, stop=["</plan>"], include_stop_str_in_output=True, max_tokens=max_plan_tokens, structured_outputs=structured_params)
+        sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, stop=["</plan>"], include_stop_str_in_output=True, max_tokens=max_plan_tokens, structured_outputs=structured_params, seed=self.seed)
         # generate strategy results without thinking
         outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
-        total_tokens += sum([len(plan.token_ids) for request_output in outputs for plan in request_output.outputs])
+        total_tokens = [sum([len(plan.token_ids) for plan in request_output.outputs]) for request_output in outputs]
 
         # loop through the different questions and combine the generated ideas with separator tokens
         generated_prompts = []
@@ -62,24 +86,9 @@ class Strategy(ABC):
             generated_prompts.append(request_prompts) 
         # print(f"original plans are: {generated_prompts[random_question]}")
 
-        # create sampling params for model to determine if it's unique
-        sampling_params = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=max_selection_tokens)
-
-        # format prompts for qwen with system prompt to tell model of separator and ask for diverse prompts
-        # TODO: use regex tags to force it to output the indexes
-        prompts = [[
-            {"role": "user", "content": f"Do NOT solve the problem. The following text contains several prompt options, each single prompt option is surrounded by <example> and </example>, Only select the unique approaches and return their number and a period, for example: 3., 4., etc. Separate the results with \\n': {"\n".join([f"<example>{i}. "+request_generated_prompt+"</example>" for i, request_generated_prompt in enumerate(generated_prompt)])}"}
-        ] for generated_prompt in generated_prompts]
-
-        # get diverse prompts
-        outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
-        total_tokens += sum([len(request_output.outputs[0].token_ids) for request_output in outputs])
-
-        # return the prompts but as a list (questions) of lists (unique prompts)
-        indexes = []
-        for output in outputs:
-            indexes_2_int = [int(t.replace(".", "")) for t in re.findall(r'\d+\.?', self._extract_content(output.outputs[0].text))] 
-            indexes.append(set(indexes_2_int))
+        indexes, diversity_tokens = self._get_diverse_prompts(generated_prompts, max_selection_tokens)
+        total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
+        print(len(total_tokens))
 
         generated_diverse_prompts = [[generated_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(generated_prompts[i])] for i, diverse_indexes in enumerate(indexes)]
         # print(f"diverse plans are: {generated_diverse_prompts[random_question]}")
@@ -88,35 +97,35 @@ class Strategy(ABC):
         return {"generated_prompts": generated_prompts, "indexes": indexes, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
 
 class HypothesisStrategy(Strategy):
-    def __init__(self, llm):
+    def __init__(self, llm, seed=42):
         prompt_strategy = "Do NOT solve the problem. Provide a hypothesis for how to solve this problem."
-        super().__init__(llm, prompt_strategy)
+        super().__init__(llm, prompt_strategy, "HypothesisStrategy", seed)
 
 class PlanStrategy(Strategy):
-    def __init__(self, llm):
+    def __init__(self, llm, seed=42):
         prompt_strategy = "Do NOT solve the problem. Provide a plan to solve this problem." # TODO: more detail, maybe try to directly ask for 8 unique plans instead of sampling with n
-        super().__init__(llm, prompt_strategy)
+        super().__init__(llm, prompt_strategy, "PlanStrategy", seed)
 
 class ConceptStrategy(Strategy):
-    def __init__(self, llm):
+    def __init__(self, llm, seed=42):
         prompt_strategy = "Do NOT solve the problem. Provide the necessary concepts to solve this problem."
-        super().__init__(llm, prompt_strategy)
+        super().__init__(llm, prompt_strategy, "ConceptStrategy", seed)
 
 class ReasoningStructureStrategy(Strategy):
-    def __init__(self, llm):
+    def __init__(self, llm, seed=42):
         prompt_strategy = "Do NOT solve the problem. Provide a Algorithmic Reasoning Structure for this problem."
-        super().__init__(llm, prompt_strategy)
+        super().__init__(llm, prompt_strategy, "ReasoningStructureStrategy", seed)
 
 class CountdownStrategy(Strategy):
-    def __init__(self, llm):
+    def __init__(self, llm, seed=42):
         prompt_strategy = "Provide the strategies to solve a Countdown problem (use basic arithmetic to combine six selected numbers in order to calculate a randomly generated target)."
-        super().__init__(llm, prompt_strategy)
+        super().__init__(llm, prompt_strategy, "CountdownStrategy", seed)
 
 class UserStrategy(Strategy):
-    def __init__(self, llm):
-        super().__init__(llm, "")
+    def __init__(self, llm, seed=42):
+        super().__init__(llm, "", "UserStrategy", seed)
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_tokens=16384, max_plan_tokens=1000):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000):
         # need to fill in with user created prompts
         tokenizer = self.llm.get_tokenizer()
         new_prompts = [
@@ -133,3 +142,26 @@ class UserStrategy(Strategy):
         ] * len(user_prompts)
 
         return {"generated_prompts": new_prompts, "indexes": range(len(new_prompts)), "generated_diverse_prompts": new_prompts, "total_tokens": 0}
+
+class CompletionStrategy(Strategy):
+    def __init__(self, llm, seed=42):
+        super().__init__(llm, "", "CompletionStrategy", seed)
+    
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000):
+        sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_plan_tokens, seed=self.seed)
+        outputs = self.llm.chat([[{"role": "user", "content": prompt}] for prompt in user_prompts], sampling_params=sampling_params)
+
+        new_prompts = []
+        total_tokens = []
+        for i, request_output in enumerate(outputs):
+            new_prompts.append([single_output.text for single_output in request_output.outputs])
+            total_tokens.append(sum(len(single_output.token_ids) for single_output in request_output.outputs))
+
+        indexes = []
+        
+        indexes, diversity_tokens = self._get_diverse_prompts(new_prompts, max_selection_tokens)
+        total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
+
+        generated_diverse_prompts = [[new_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(new_prompts[i])] for i, diverse_indexes in enumerate(indexes)]       
+        
+        return {"generated_prompts": new_prompts, "indexes": indexes, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
