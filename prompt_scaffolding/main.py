@@ -27,8 +27,8 @@ llm = Model(model, seed=seed)
 
 # model strategy, set to None if not using
 # strategy = UserStrategy(llm=llm.llm, seed=seed)
-strategy = CountdownStrategy(llm=llm.llm, seed=seed)
-# strategy = CompletionStrategy(llm=llm.llm, seed=seed)
+# strategy = CountdownStrategy(llm=llm.llm, seed=seed)
+strategy = CompletionStrategy(llm=llm.llm, seed=seed)
 # strategy = None
 
 data = reasoning_gym.create_dataset(dataset_type, size=num_examples, min_numbers=level, max_numbers=level, seed=seed)

@@ -1,21 +1,19 @@
 from model.strategies import HypothesisStrategy, PlanStrategy, ConceptStrategy, ReasoningStructureStrategy, CountdownStrategy, UserStrategy
 
 from vllm import LLM, SamplingParams
+from vllm.sampling_params import StructuredOutputsParams
 import random
 import sys
 
 answer_instruction = """
-    \n\nProvide your solution as a arithmetic expression (no '=' sign).\n
+    \n\nEach number must be used at most once.\n
+    1. Provide your solution as a arithmetic expression (no '=' sign).\n
     2. Do not include the target number in the expression.\n
     3. Use '*' for multiplication.\n
     4. Use '/' for division.\n
-    5. Do not use × for multiplication\n
-    6. Additional format requirements:\n
-    Show your thinking in <think> your reasoning here </think> followed by the final answer in <answer></answer>.\n
     Do not include any other text or formatting for the final answer.
 """
 
-# TODO: control generation with <answer></answer> token
 class Model:
     def __init__(self, model_name: str, seed=42):
         self.llm = LLM(model=model_name, tensor_parallel_size=1)
@@ -34,16 +32,16 @@ class Model:
 
                 organized_outputs[best_of_n]["responses"] = []
                 
-                # define sampling parameters with user hyperparameters
-                sampling_params = SamplingParams(temperature=temperature, top_p=0.95, max_tokens=max_tokens, seed=self.seed)
+                # define sampling parameters with user hyperparameters     
+                sampling_params = SamplingParams(temperature=temperature, top_p=0.95, stop=["</answer>"], include_stop_str_in_output=True, max_tokens=max_tokens, seed=self.seed)
                 
                 # loop through the question prompts and then through diversified prompts to generate the results
                 for j, (diverse_request_prompts, og_prompt) in enumerate(zip(new_request_prompts, prompts)):
                     if strategy.name == "CompletionStrategy":
-                        formatted_variants = [og_prompt + "\n" + diverse_prompt for diverse_prompt in diverse_request_prompts]
+                        formatted_variants = [f"<|im_start|>system\nAfter thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}.<|im_end|>\n<|im_start|>user\n{og_prompt}<|im_end|>\n<|im_start|>assistant\n{diverse_prompt}" for diverse_prompt in diverse_request_prompts]
                         outputs = self.llm.generate(formatted_variants, sampling_params=sampling_params)
                     else:
-                        formatted_variants = [[{"role": "user", "content": og_prompt + "\n" + diverse_prompt + answer_instruction}] for diverse_prompt in diverse_request_prompts]
+                        formatted_variants = [[{"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."}, {"role": "user", "content": og_prompt + "\n" + diverse_prompt + answer_instruction}] for diverse_prompt in diverse_request_prompts]
                         outputs = self.llm.chat(formatted_variants, sampling_params=sampling_params)
                     
                     organized_outputs[best_of_n]["responses"].append([request_output.outputs[0] for request_output in outputs])

@@ -5,6 +5,15 @@ import random
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
 
+answer_instruction = """
+    \n\nEach number must be used at most once.\n
+    1. Provide your solution as a arithmetic expression (no '=' sign).\n
+    2. Do not include the target number in the expression.\n
+    3. Use '*' for multiplication.\n
+    4. Use '/' for division.\n
+    Do not include any other text or formatting for the final answer.
+"""
+
 class Strategy(ABC):
     def __init__(self, llm, prompt_strategy, name="Strategy", seed=42):
         self.name = name
@@ -22,12 +31,12 @@ class Strategy(ABC):
     
     def _get_diverse_prompts(self, generated_prompts, max_selection_tokens=100):
         # create sampling params for model to determine if it's unique
-        sampling_params = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=max_selection_tokens, seed=self.seed)
+        sampling_params = SamplingParams(temperature=0.1, top_p=0.95, max_tokens=max_selection_tokens, seed=self.seed)
 
         # format prompts for qwen with system prompt to tell model of separator and ask for diverse prompts
-        # TODO: use regex tags to force it to output the indexes
+        # TODO: diversity for baseline, ranking by chance to lead to correct solution, multistage
         prompts = [[
-            {"role": "user", "content": f"Do NOT solve the problem. The following text contains several prompt options, each single prompt option is surrounded by <example> and </example>, Only select the unique approaches and return their number and a period, for example: 3., 4., etc. Separate the results with \\n': {"\n".join([f"<example>{i}. "+request_generated_prompt+"</example>" for i, request_generated_prompt in enumerate(generated_prompt)])}"}
+            {"role": "user", "content": f"Do NOT solve the problem. The following text contains several prompt options (values range from 0. to {len(generated_prompt)}.), each single prompt option is surrounded by <example#> and </example#>, Only select the unique approaches and return their number and a period, for example: 3., 4., etc. Separate the results with \\n': {"\n".join([f"<example{i}>{i}. "+request_generated_prompt.replace("<think>", "")+"</example{i}>" for i, request_generated_prompt in enumerate(generated_prompt)])}"}
         ] for generated_prompt in generated_prompts]
 
         # get diverse prompts
@@ -38,7 +47,7 @@ class Strategy(ABC):
         indexes = []
         for output in outputs:
             indexes_2_int = [int(t.replace(".", "")) for t in re.findall(r'\d+\.?', self._extract_content(output.outputs[0].text))] 
-            indexes.append(list(set(indexes_2_int)))
+            indexes.append(sorted(list(set(indexes_2_int))))
         
         return indexes, total_tokens
     
@@ -88,7 +97,6 @@ class Strategy(ABC):
 
         indexes, diversity_tokens = self._get_diverse_prompts(generated_prompts, max_selection_tokens)
         total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
-        print(len(total_tokens))
 
         generated_diverse_prompts = [[generated_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(generated_prompts[i])] for i, diverse_indexes in enumerate(indexes)]
         # print(f"diverse plans are: {generated_diverse_prompts[random_question]}")
@@ -147,9 +155,10 @@ class CompletionStrategy(Strategy):
     def __init__(self, llm, seed=42):
         super().__init__(llm, "", "CompletionStrategy", seed)
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=500):
+        # TODO: test with different mumber of max_plan_tokens (first few 100 is even better)
         sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_plan_tokens, seed=self.seed)
-        outputs = self.llm.chat([[{"role": "user", "content": prompt}] for prompt in user_prompts], sampling_params=sampling_params)
+        outputs = self.llm.chat([[{"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."}, {"role": "user", "content": prompt}] for prompt in user_prompts], sampling_params=sampling_params)
 
         new_prompts = []
         total_tokens = []
