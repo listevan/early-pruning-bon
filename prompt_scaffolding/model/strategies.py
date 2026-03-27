@@ -35,19 +35,34 @@ class Strategy(ABC):
 
         # format prompts for qwen with system prompt to tell model of separator and ask for diverse prompts
         # TODO: diversity for baseline, ranking by chance to lead to correct solution, multistage
+        # TODO: 3/13/26 --> check if Gemini or Claude can properly choose whether each of the 8 approaches are unique --> if its not just a model problem
+        # TODO: 3/13/26 --> sNEW TEST for PICKING INDEXES: CoT it / reason each approach between <think> blocks, THEN select indexes
         prompts = [[
-            {"role": "user", "content": f"Do NOT solve the problem. The following text contains several prompt options (values range from 0. to {len(generated_prompt)}.), each single prompt option is surrounded by <example#> and </example#>, Only select the unique approaches and return their number and a period, for example: 3., 4., etc. Separate the results with \\n': {"\n".join([f"<example{i}>{i}. "+request_generated_prompt.replace("<think>", "")+"</example{i}>" for i, request_generated_prompt in enumerate(generated_prompt)])}"}
+            {
+                "role": "user", 
+                "content": f"""
+                    Do NOT solve the problem.
+                    The following text contains several prompt options (values range from i0 to i{len(generated_prompt)}),
+                    Each single prompt option is surrounded by <example#> and </example#>.
+                    First, only select the unique or diverse approaches. Compare each approach to every other approach, and select ONLY the ones you believe are unique.
+                    Every time you select a unique approach from i0 to i{len(generated_prompt)}, reason why the approach is unique.
+                    Once you have selected the unique or diverse approaches, return their index followed by the letter i
+                    Separate the results with \\n': {"\n".join([f"<example{i}>i{i} "+request_generated_prompt.replace("<think>", "")+f"</example{i}>" for i, request_generated_prompt in enumerate(generated_prompt)])}
+                """}
         ] for generated_prompt in generated_prompts]
 
         # get diverse prompts
         outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
+        # print("Diverse prompt outputs:", [out.outputs[0].text for out in outputs])
         total_tokens = [len(request_output.outputs[0].token_ids) for request_output in outputs]
 
         # return the prompts but as a list (questions) of lists (unique prompts)
         indexes = []
         for output in outputs:
-            indexes_2_int = [int(t.replace(".", "")) for t in re.findall(r'\d+\.?', self._extract_content(output.outputs[0].text))] 
+            indexes_2_int = [int(t.replace("i", "")) for t in re.findall(r'i\d+', self._extract_content(output.outputs[0].text))] 
             indexes.append(sorted(list(set(indexes_2_int))))
+
+        # print("Picked indicies: ", indexes)
         
         return indexes, total_tokens
     

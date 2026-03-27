@@ -1,12 +1,39 @@
-with open("/u/stevex2/prompt_scaffolding/CS497/prompt_scaffolding/Qwen_Qwen3-0_6B_2026-02-24-18-00_n=8_t=0.9_countdown_n=100_CountdownStrategy.txt", 'r') as f:
-    total_score = 0
-    total_puzzles = 0
-    for line in f:
-        res = line
-        if "Num Tokens: " in res:
-            total_puzzles += 1
-            if "Score:" in res:
-                score = float(res.split(' ')[-1].strip())
-                total_score += score
-         
-    print("Acc:", total_score)
+import json
+
+with open('/u/stevex2/prompt_scaffolding/CS497/prompt_scaffolding/2026-03-10 02:43:49.293777_bon_8_strategy_CompletionStrategy.json', 'r') as file:
+    data = json.load(file)
+
+data_8 = data['8']
+
+total_score = 0
+for i in range(len(data_8['results'])):
+    if data_8['results'][i][2] == 1.0:
+        print("==== Wrong response below:")
+        print(data_8["responses"][i][0]["text"])
+        print("\n")
+    total_score += data_8['results'][i][2]
+    
+
+print("=========== Total Accuracy: =============")
+print(float(total_score) / float(len(data_8['results'])))
+print()
+
+print("=========== Generating Index-selection frequency Histogram =============")
+print(data_8['indexes'])
+print()
+
+from collections import Counter
+import matplotlib.pyplot as plt
+flat_list = [item for sublist in data_8['indexes'] for item in sublist]
+
+counts = Counter(flat_list)
+
+labels = list(range(1, 9))
+frequencies = [counts.get(i, 0) for i in labels]
+
+plt.bar(labels, frequencies, color='lightcoral', edgecolor='black')
+plt.xlabel('Value')
+plt.ylabel('Frequency')
+plt.title('Frequency of Individual Numbers (Range 1-8)')
+plt.xticks(labels)
+plt.savefig('number_frequency_histogram.png')

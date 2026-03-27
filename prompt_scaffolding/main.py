@@ -15,12 +15,13 @@ random.seed(seed)
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 2
+num_examples = 4
 
 # model hyperparameters
 temperature = 0.9
-best_of_ns = [4]# [1,2,4,8,16] # 32 is way too large for A40 right now...
-model="Qwen/Qwen3-0.6B"
+best_of_ns = [8]# [1,2,4,8,16] # 32 is way too large for A40 right now...
+# model="Qwen/Qwen3-4B-Instruct-2507" # TODO: --> 3/13/26: Qwen-4B-instruct-2507 for shorter CoT and see if better
+model = "Qwen/Qwen3-0.6B"
 
 # initialize model
 llm = Model(model, seed=seed)
@@ -108,5 +109,37 @@ for best_of_n in best_of_ns:
 
     print(f"best_of_{best_of_n} score is: {float(sum(result[2] for result in outputs[best_of_n]["results"])) / num_examples} and used average token count of: {float(sum(outputs[best_of_n]["total_tokens"])) / num_examples}")
 
-with open(f"{datetime.datetime.now()}_bon_{'_'.join(list(map(str, best_of_ns)))}_strategy_{strategy.name if strategy else "None"}.json", "w") as f:
+fname = f"{datetime.datetime.now()}_bon_{'_'.join(list(map(str, best_of_ns)))}_strategy_{strategy.name if strategy else "None"}.json"
+with open(fname, "w") as f:
     json.dump(outputs, f, indent=4, default=vllm_encoder)
+    
+def format_json_inplace(filepath, indent=4):
+    # 1. Read the existing data
+    with open(filepath, 'r') as f:
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError:
+            print(f"Error: {filepath} is not valid JSON.")
+            return
+
+    # 2. Create the standard pretty-printed string
+    # This ensures strings and objects are on new lines as requested
+    pretty_json = json.dumps(data, indent=indent)
+
+    # 3. Use Regex to find numeric arrays and collapse them
+    # This matches '[' followed by numbers, commas, and whitespace, ending in ']'
+    # It will NOT match ["a", "b"] because of the quote marks.
+    numeric_array_pattern = r'\[(?:\s*-?[\d\.]+\s*,?)+\s*\]'
+
+    def collapse_match(match):
+        # Remove all newlines and extra spaces, then add a single space after commas
+        collapsed = re.sub(r'\s+', '', match.group(0))
+        return collapsed.replace(',', ', ')
+
+    fixed_json = re.sub(numeric_array_pattern, collapse_match, pretty_json)
+
+    # 4. Overwrite the original file
+    with open(filepath, 'w') as f:
+        f.write(fixed_json)
+
+format_json_inplace(fname)
