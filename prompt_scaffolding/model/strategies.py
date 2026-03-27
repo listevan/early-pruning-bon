@@ -29,7 +29,7 @@ class Strategy(ABC):
             return match.group(1).strip()
         return text.strip()
     
-    def _get_diverse_prompts(self, generated_prompts, max_selection_tokens=100):
+    def _get_diverse_prompts(self, generated_prompts, max_selection_tokens=16000): # TODO: 3/27/26: let max_selection_tokens be sufficiently enough
         # create sampling params for model to determine if it's unique
         sampling_params = SamplingParams(temperature=0.1, top_p=0.95, max_tokens=max_selection_tokens, seed=self.seed)
 
@@ -42,11 +42,11 @@ class Strategy(ABC):
                 "role": "user", 
                 "content": f"""
                     Do NOT solve the problem.
-                    The following text contains several prompt options (values range from i0 to i{len(generated_prompt)}),
-                    Each single prompt option is surrounded by <example#> and </example#>.
+                    The following text contains several partial solutions (values range from i0 to i{len(generated_prompt)}),
+                    Each single partial solution is surrounded by <example#> and </example#>.
+                    Reason why the approach from i0 to i{len(generated_prompt)} is unique.
                     First, only select the unique or diverse approaches. Compare each approach to every other approach, and select ONLY the ones you believe are unique.
-                    Every time you select a unique approach from i0 to i{len(generated_prompt)}, reason why the approach is unique.
-                    Once you have selected the unique or diverse approaches, return their index followed by the letter i
+                    Once you have selected the unique or diverse approaches, return their index prepended letter i.
                     Separate the results with \\n': {"\n".join([f"<example{i}>i{i} "+request_generated_prompt.replace("<think>", "")+f"</example{i}>" for i, request_generated_prompt in enumerate(generated_prompt)])}
                 """}
         ] for generated_prompt in generated_prompts]
@@ -67,6 +67,8 @@ class Strategy(ABC):
         return indexes, total_tokens
     
     def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000):
+        # TODO 3/27/26: Get 8 full solutions(full solutions) --> and then truncate each of the full solutions so no need to rerun "generate_prompts"
+            # TODO: to do the above, tokenize full solutions --> then truncate to first 500 tokens
         total_tokens = []
 
         # print(f"best_of_n: {best_of_n}")
@@ -172,6 +174,8 @@ class CompletionStrategy(Strategy):
     
     def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=500):
         # TODO: test with different mumber of max_plan_tokens (first few 100 is even better)
+        # TODO: 3/27/26: Vary max_plan_tokens and make sure essence of solution is within these 500 tokens(so make sure that 500 is enough) --> treat as hyperparameter and just test around(no good way to test it)
+        # TODO: 3/27/26: Thinking models tend to do bad with <think></think> because training doesn't condition on it
         sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_plan_tokens, seed=self.seed)
         outputs = self.llm.chat([[{"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."}, {"role": "user", "content": prompt}] for prompt in user_prompts], sampling_params=sampling_params)
 

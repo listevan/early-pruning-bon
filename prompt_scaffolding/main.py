@@ -15,7 +15,7 @@ random.seed(seed)
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 4
+num_examples = 4 # TODO 3/27/26: Can go up to 30, no need for 100 right
 
 # model hyperparameters
 temperature = 0.9
