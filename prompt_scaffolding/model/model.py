@@ -16,7 +16,7 @@ answer_instruction = """
 
 class Model:
     def __init__(self, model_name: str, seed=42):
-        self.llm = LLM(model=model_name, tensor_parallel_size=1)
+        self.llm = LLM(model=model_name, tensor_parallel_size=1, max_model_len=65536)
         self.seed = seed
 
     def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, strategy=None, previous_responses=None):
@@ -49,7 +49,6 @@ class Model:
                             formatted_variants = [[{"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."}, {"role": "user", "content": og_prompt + "\n" + diverse_prompt + answer_instruction}] for diverse_prompt in diverse_request_prompts]
                             outputs = self.llm.chat(formatted_variants, sampling_params=sampling_params)
                     
-                    if previous_responses is None:    
                         organized_outputs[best_of_n]["responses"].append([request_output.outputs[0] for request_output in outputs])
                         organized_outputs[best_of_n]["total_tokens"][j] += sum(len(request_output.outputs[0].token_ids) for request_output in outputs)
                     else:
