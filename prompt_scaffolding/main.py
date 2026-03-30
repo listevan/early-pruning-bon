@@ -15,13 +15,13 @@ random.seed(seed)
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 4 # TODO 3/27/26: Can go up to 30, no need for 100 right
+num_examples = 30 # TODO 3/27/26: Can go up to 30, no need for 100 right
 
 # model hyperparameters
 temperature = 0.9
 best_of_ns = [8]# [1,2,4,8,16] # 32 is way too large for A40 right now...
-# model="Qwen/Qwen3-4B-Instruct-2507" # TODO: --> 3/13/26: Qwen-4B-instruct-2507 for shorter CoT and see if better
-model = "Qwen/Qwen3-0.6B"
+model="Qwen/Qwen3-4B-Instruct-2507" # TODO: --> 3/13/26: Qwen-4B-instruct-2507 for shorter CoT and see if better
+# model = "Qwen/Qwen3-0.6B"
 
 # initialize model
 llm = Model(model, seed=seed)
