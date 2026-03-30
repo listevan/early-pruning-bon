@@ -4,6 +4,7 @@ import sys
 import random
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
+import json
 
 answer_instruction = """
     \n\nEach number must be used at most once.\n
@@ -42,9 +43,9 @@ class Strategy(ABC):
                 "role": "user", 
                 "content": f"""
                     Do NOT solve the problem.
-                    The following text contains several partial solutions (values range from i0 to i{len(generated_prompt)}),
+                    The following text contains several partial solutions (values range from i0 to i{len(generated_prompt)-1}),
                     Each single partial solution is surrounded by <example#> and </example#>.
-                    Reason why the approach from i0 to i{len(generated_prompt)} is unique.
+                    Reason why the approach from i0 to i{len(generated_prompt)-1} is unique.
                     First, only select the unique or diverse approaches. Compare each approach to every other approach, and select ONLY the ones you believe are unique.
                     Once you have selected the unique or diverse approaches, return their index prepended letter i.
                     Separate the results with \\n': {"\n".join([f"<example{i}>i{i} "+request_generated_prompt.replace("<think>", "")+f"</example{i}>" for i, request_generated_prompt in enumerate(generated_prompt)])}
@@ -66,7 +67,7 @@ class Strategy(ABC):
         
         return indexes, total_tokens
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000, previous_responses=None):
         # TODO 3/27/26: Get 8 full solutions(full solutions) --> and then truncate each of the full solutions so no need to rerun "generate_prompts"
             # TODO: to do the above, tokenize full solutions --> then truncate to first 500 tokens
         total_tokens = []
@@ -150,7 +151,7 @@ class UserStrategy(Strategy):
     def __init__(self, llm, seed=42):
         super().__init__(llm, "", "UserStrategy", seed)
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000, previous_responses=None):
         # need to fill in with user created prompts
         tokenizer = self.llm.get_tokenizer()
         new_prompts = [
@@ -172,20 +173,26 @@ class CompletionStrategy(Strategy):
     def __init__(self, llm, seed=42):
         super().__init__(llm, "", "CompletionStrategy", seed)
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=500):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=500, previous_responses=None):
         # TODO: test with different mumber of max_plan_tokens (first few 100 is even better)
         # TODO: 3/27/26: Vary max_plan_tokens and make sure essence of solution is within these 500 tokens(so make sure that 500 is enough) --> treat as hyperparameter and just test around(no good way to test it)
         # TODO: 3/27/26: Thinking models tend to do bad with <think></think> because training doesn't condition on it
-        sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_plan_tokens, seed=self.seed)
-        outputs = self.llm.chat([[{"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."}, {"role": "user", "content": prompt}] for prompt in user_prompts], sampling_params=sampling_params)
-
         new_prompts = []
         total_tokens = []
-        for i, request_output in enumerate(outputs):
-            new_prompts.append([single_output.text for single_output in request_output.outputs])
-            total_tokens.append(sum(len(single_output.token_ids) for single_output in request_output.outputs))
-
         indexes = []
+
+        if previous_responses is None:
+            sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_plan_tokens, seed=self.seed)
+            outputs = self.llm.chat([[{"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."}, {"role": "user", "content": prompt}] for prompt in user_prompts], sampling_params=sampling_params)
+
+            for i, request_output in enumerate(outputs):
+                new_prompts.append([single_output.text for single_output in request_output.outputs])
+                total_tokens.append(sum(len(single_output.token_ids) for single_output in request_output.outputs))
+        else:
+            tokenizer = self.llm.get_tokenizer()
+            for i, request_output in enumerate(previous_responses):
+                new_prompts.append([tokenizer.decode(response["token_ids"][:max_plan_tokens]) for response in request_output])
+                total_tokens.append(sum([min(max_plan_tokens, len(response["token_ids"])) for response in request_output]))
         
         indexes, diversity_tokens = self._get_diverse_prompts(new_prompts, max_selection_tokens)
         total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
@@ -193,3 +200,4 @@ class CompletionStrategy(Strategy):
         generated_diverse_prompts = [[new_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(new_prompts[i])] for i, diverse_indexes in enumerate(indexes)]       
         
         return {"generated_prompts": new_prompts, "indexes": indexes, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
+        

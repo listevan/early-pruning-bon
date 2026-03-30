@@ -32,12 +32,17 @@ llm = Model(model, seed=seed)
 strategy = CompletionStrategy(llm=llm.llm, seed=seed)
 # strategy = None
 
+# previous_responses_fn = ""
+# with open(previous_responses_fn, "r") as f:
+#     previous_responses = {best_of_n: data["responses"] for best_of_n, data in json.load(f).items()} # dict of best of n to "responses" (list of dicts)
+previous_responses = None
+
 data = reasoning_gym.create_dataset(dataset_type, size=num_examples, min_numbers=level, max_numbers=level, seed=seed)
 # load the questions
 prompts = [entry["question"] for entry in data]
 
 # generate responses
-outputs = Model.generate_responses(llm, prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy)
+outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy)
 
 def clean_math_string(line):
     # 1. Remove \boxed{ and the closing }
