@@ -30,7 +30,7 @@ class Strategy(ABC):
             return match.group(1).strip()
         return text.strip()
     
-    def _get_diverse_prompts(self, generated_prompts, max_selection_tokens=16000): # TODO: 3/27/26: let max_selection_tokens be sufficiently enough
+    def _get_diverse_prompts(self, user_prompts, generated_prompts, max_selection_tokens=16000): # TODO: 3/27/26: let max_selection_tokens be sufficiently enough
         # create sampling params for model to determine if it's unique
         sampling_params = SamplingParams(temperature=0.1, top_p=0.95, max_tokens=max_selection_tokens, seed=self.seed)
 
@@ -38,19 +38,52 @@ class Strategy(ABC):
         # TODO: diversity for baseline, ranking by chance to lead to correct solution, multistage
         # TODO: 3/13/26 --> check if Gemini or Claude can properly choose whether each of the 8 approaches are unique --> if its not just a model problem
         # TODO: 3/13/26 --> sNEW TEST for PICKING INDEXES: CoT it / reason each approach between <think> blocks, THEN select indexes
+        # prompts = [[
+        #     {
+        #         "role": "user", 
+        #         "content": f"""
+        #             Do NOT solve the problem.
+        #             The following text contains several partial solutions (values range from i0 to i{len(generated_prompt)-1}),
+        #             Each single partial solution is surrounded by <example#> and </example#>.
+        #             Reason why the approach from i0 to i{len(generated_prompt)-1} is unique.
+        #             First, only select the unique or diverse approaches. Compare each approach to every other approach, and select ONLY the ones you believe are unique.
+        #             Once you have selected the unique or diverse approaches, return their index prepended letter i.
+        #             Separate the results with \\n': {"\n".join([f"<example{i}>i{i} "+request_generated_prompt.replace("<think>", "")+f"</example{i}>" for i, request_generated_prompt in enumerate(generated_prompt)])}
+        #         """}
+        # ] for generated_prompt in generated_prompts]
+
         prompts = [[
             {
                 "role": "user", 
                 "content": f"""
-                    Do NOT solve the problem.
-                    The following text contains several partial solutions (values range from i0 to i{len(generated_prompt)-1}),
-                    Each single partial solution is surrounded by <example#> and </example#>.
-                    Reason why the approach from i0 to i{len(generated_prompt)-1} is unique.
-                    First, only select the unique or diverse approaches. Compare each approach to every other approach, and select ONLY the ones you believe are unique.
-                    Once you have selected the unique or diverse approaches, return their index prepended letter i.
-                    Separate the results with \\n': {"\n".join([f"<example{i}>i{i} "+request_generated_prompt.replace("<think>", "")+f"</example{i}>" for i, request_generated_prompt in enumerate(generated_prompt)])}
-                """}
-        ] for generated_prompt in generated_prompts]
+        You are an expert evaluator. Do NOT solve the problem. Your task is to identify the unique logical approaches from a set of partial solutions.
+
+        ### The Problem:
+        {user_prompt}
+
+        ### The Partial Solutions:
+        {"".join([f"<example id='i{i}'>\n{request_generated_prompt.replace('<think>', '')}\n</example>\n" for i, request_generated_prompt in enumerate(generated_prompt)])}
+
+        ### Instructions:
+        1. Analyze the underlying method or algorithm of each partial solution. Ignore superficial differences (like different variable names or slight phrasing changes).
+        2. Compare each approach to the others to group them by core logic. 
+        3. Select exactly ONE representative index (e.g., i0) for each distinct approach.
+
+        ### Output Format:
+        First, provide your step-by-step comparison inside <reasoning> tags.
+        Then, output ONLY the selected indices inside <results> tags, with each index on a new line. 
+
+        Example Output:
+        <reasoning>
+        i0 uses a dynamic programming approach. i1 uses the exact same approach but renames the array, so it is a duplicate. i2 introduces a unique recursive approach.
+        </reasoning>
+        <results>
+        i0
+        i2
+        </results>
+                """
+            }
+        ] for user_prompt, generated_prompt in zip(user_prompts, generated_prompts)]
 
         # get diverse prompts
         outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
@@ -60,7 +93,14 @@ class Strategy(ABC):
         # return the prompts but as a list (questions) of lists (unique prompts)
         indexes = []
         for output in outputs:
-            indexes_2_int = [int(t.replace("i", "")) for t in re.findall(r'i\d+', self._extract_content(output.outputs[0].text))] 
+            text = self._extract_content(output.outputs[0].text)
+            
+            # 1. Isolate the results block to avoid picking up reasoning indices
+            results_match = re.search(r'<results>(.*?)</results>', text, re.DOTALL)
+            results_text = results_match.group(1) if results_match else text # fallback to full text if tags fail
+            
+            # 2. Extract indices only from the results block
+            indexes_2_int = [int(t.replace("i", "")) for t in re.findall(r'i\d+', results_text)] 
             indexes.append(sorted(list(set(indexes_2_int))))
 
         # print("Picked indicies: ", indexes)
@@ -113,7 +153,7 @@ class Strategy(ABC):
             generated_prompts.append(request_prompts) 
         # print(f"original plans are: {generated_prompts[random_question]}")
 
-        indexes, diversity_tokens = self._get_diverse_prompts(generated_prompts, max_selection_tokens)
+        indexes, diversity_tokens = self._get_diverse_prompts(user_prompts, generated_prompts, max_selection_tokens)
         total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
 
         generated_diverse_prompts = [[generated_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(generated_prompts[i])] for i, diverse_indexes in enumerate(indexes)]
@@ -173,7 +213,7 @@ class CompletionStrategy(Strategy):
     def __init__(self, llm, seed=42):
         super().__init__(llm, "", "CompletionStrategy", seed)
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=500, previous_responses=None):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=500, previous_responses=None):
         # TODO: test with different mumber of max_plan_tokens (first few 100 is even better)
         # TODO: 3/27/26: Vary max_plan_tokens and make sure essence of solution is within these 500 tokens(so make sure that 500 is enough) --> treat as hyperparameter and just test around(no good way to test it)
         # TODO: 3/27/26: Thinking models tend to do bad with <think></think> because training doesn't condition on it
@@ -194,7 +234,7 @@ class CompletionStrategy(Strategy):
                 new_prompts.append([tokenizer.decode(response["token_ids"][:max_plan_tokens]) for response in request_output])
                 total_tokens.append(sum([min(max_plan_tokens, len(response["token_ids"])) for response in request_output]))
         
-        indexes, diversity_tokens = self._get_diverse_prompts(new_prompts, max_selection_tokens)
+        indexes, diversity_tokens = self._get_diverse_prompts(user_prompts, new_prompts, max_selection_tokens)
         total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
 
         generated_diverse_prompts = [[new_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(new_prompts[i])] for i, diverse_indexes in enumerate(indexes)]       
