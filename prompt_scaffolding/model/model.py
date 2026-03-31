@@ -16,7 +16,7 @@ answer_instruction = """
 
 class Model:
     def __init__(self, model_name: str, seed=42):
-        self.llm = LLM(model=model_name, tensor_parallel_size=1, max_model_len=65536)
+        self.llm = LLM(model=model_name, tensor_parallel_size=1, max_model_len=60000)# max_model_len=65536)
         self.seed = seed
 
     def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, strategy=None, previous_responses=None):
@@ -61,8 +61,11 @@ class Model:
             print("Strategy is none...")
             # if not use user hyperparameters to generate results from prompt
             sampling_params = SamplingParams(n=max(best_of_ns), temperature=temperature, top_p=0.95, max_tokens=max_tokens, seed=self.seed)
-            # print(prompts)
-            outputs = self.llm.chat([[{"role": "user", "content": prompt}] for prompt in prompts], sampling_params=sampling_params)
+            # Pass system prompt and answer_instructions when no strategy is used
+            outputs = self.llm.chat([[
+                {"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."},
+                {"role": "user", "content": prompt + "\n" + answer_instruction}
+            ] for prompt in prompts], sampling_params=sampling_params)
 
             # loop through questions to create a dictionary for each of the best_of_n results
             organized_outputs = {}
