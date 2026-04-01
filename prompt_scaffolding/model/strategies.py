@@ -56,31 +56,31 @@ class Strategy(ABC):
             {
                 "role": "user", 
                 "content": f"""
-        You are an expert evaluator. Do NOT solve the problem. Your task is to identify the unique logical approaches from a set of partial solutions.
+                    You are an expert evaluator. Do NOT solve the problem. Your task is to identify the unique logical approaches from a set of partial solutions.
 
-        ### The Problem:
-        {user_prompt}
+                    ### The Problem:
+                    {user_prompt}
 
-        ### The Partial Solutions:
-        {"".join([f"<example id='i{i}'>\n{request_generated_prompt.replace('<think>', '')}\n</example>\n" for i, request_generated_prompt in enumerate(generated_prompt)])}
+                    ### The Partial Solutions:
+                    {"".join([f"<example id='i{i}'>\n{request_generated_prompt.replace('<think>', '')}\n</example>\n" for i, request_generated_prompt in enumerate(generated_prompt)])}
 
-        ### Instructions:
-        1. Analyze the underlying method or algorithm of each partial solution. Ignore superficial differences (like different variable names or slight phrasing changes).
-        2. Compare each approach to the others to group them by core logic. 
-        3. Select exactly ONE representative index (e.g., i0) for each distinct approach.
+                    ### Instructions:
+                    1. Analyze the underlying method or algorithm of each partial solution. Ignore superficial differences (like different variable names or slight phrasing changes).
+                    2. Compare each approach to the others to group them by core logic. 
+                    3. Select exactly ONE representative index (e.g., i0) for each distinct approach.
 
-        ### Output Format:
-        First, provide your step-by-step comparison inside <reasoning> tags.
-        Then, output ONLY the selected indices inside <results> tags, with each index on a new line. 
+                    ### Output Format:
+                    First, provide your step-by-step comparison inside <reasoning> tags.
+                    Then, output ONLY the selected indices inside <results> tags, with each index on a new line. 
 
-        Example Output:
-        <reasoning>
-        i0 uses a dynamic programming approach. i1 uses the exact same approach but renames the array, so it is a duplicate. i2 introduces a unique recursive approach.
-        </reasoning>
-        <results>
-        i0
-        i2
-        </results>
+                    Example Output:
+                    <reasoning>
+                    i0 uses a dynamic programming approach. i1 uses the exact same approach but renames the array, so it is a duplicate. i2 introduces a unique recursive approach.
+                    </reasoning>
+                    <results>
+                    i0
+                    i2
+                    </results>
                 """
             }
         ] for user_prompt, generated_prompt in zip(user_prompts, generated_prompts)]
@@ -213,7 +213,7 @@ class CompletionStrategy(Strategy):
     def __init__(self, llm, seed=42):
         super().__init__(llm, "", "CompletionStrategy", seed)
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=500, previous_responses=None):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=100, previous_responses=None):
         # TODO: test with different mumber of max_plan_tokens (first few 100 is even better)
         # TODO: 3/27/26: Vary max_plan_tokens and make sure essence of solution is within these 500 tokens(so make sure that 500 is enough) --> treat as hyperparameter and just test around(no good way to test it)
         # TODO: 3/27/26: Thinking models tend to do bad with <think></think> because training doesn't condition on it
@@ -223,11 +223,24 @@ class CompletionStrategy(Strategy):
 
         if previous_responses is None:
             sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_plan_tokens, seed=self.seed)
-            outputs = self.llm.chat([[{"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."}, {"role": "user", "content": prompt}] for prompt in user_prompts], sampling_params=sampling_params)
+            outputs = self.llm.chat([
+                [
+                    {
+                        "role": "system", "content": f"First, use <think>...</think> tags to reason step-by-step. After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."
+                    }, 
+                    {
+                        "role": "user", "content": prompt
+                    }
+                ] 
+            for prompt in user_prompts], sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": True})
+
+            # import pdb; pdb.set_trace()
 
             for i, request_output in enumerate(outputs):
                 new_prompts.append([single_output.text for single_output in request_output.outputs])
                 total_tokens.append(sum(len(single_output.token_ids) for single_output in request_output.outputs))
+                # with open("newprompts_temp.txt", "+a") as f:
+                    # f.write(f"{new_prompts}\n")
         else:
             tokenizer = self.llm.get_tokenizer()
             for i, request_output in enumerate(previous_responses):
