@@ -34,24 +34,7 @@ class Strategy(ABC):
         # create sampling params for model to determine if it's unique
         sampling_params = SamplingParams(temperature=0.1, top_p=0.95, max_tokens=max_selection_tokens, seed=self.seed)
 
-        # format prompts for qwen with system prompt to tell model of separator and ask for diverse prompts
-        # TODO: diversity for baseline, ranking by chance to lead to correct solution, multistage
-        # TODO: 3/13/26 --> check if Gemini or Claude can properly choose whether each of the 8 approaches are unique --> if its not just a model problem
-        # TODO: 3/13/26 --> sNEW TEST for PICKING INDEXES: CoT it / reason each approach between <think> blocks, THEN select indexes
-        # prompts = [[
-        #     {
-        #         "role": "user", 
-        #         "content": f"""
-        #             Do NOT solve the problem.
-        #             The following text contains several partial solutions (values range from i0 to i{len(generated_prompt)-1}),
-        #             Each single partial solution is surrounded by <example#> and </example#>.
-        #             Reason why the approach from i0 to i{len(generated_prompt)-1} is unique.
-        #             First, only select the unique or diverse approaches. Compare each approach to every other approach, and select ONLY the ones you believe are unique.
-        #             Once you have selected the unique or diverse approaches, return their index prepended letter i.
-        #             Separate the results with \\n': {"\n".join([f"<example{i}>i{i} "+request_generated_prompt.replace("<think>", "")+f"</example{i}>" for i, request_generated_prompt in enumerate(generated_prompt)])}
-        #         """}
-        # ] for generated_prompt in generated_prompts]
-
+        number_choices = 4
         prompts = [[
             {
                 "role": "user", 
@@ -67,7 +50,8 @@ class Strategy(ABC):
                     ### Instructions:
                     1. Analyze the underlying method or algorithm of each partial solution. Ignore superficial differences (like different variable names or slight phrasing changes).
                     2. Compare each approach to the others to group them by core logic. 
-                    3. Select exactly ONE representative index (e.g., i0) for each distinct approach.
+                    3. Prune solutions that might lead to the same outcome.
+                    4. Select {number_choices} of the most diverse approaches.
 
                     ### Output Format:
                     First, provide your step-by-step comparison inside <reasoning> tags.
@@ -213,7 +197,7 @@ class CompletionStrategy(Strategy):
     def __init__(self, llm, seed=42):
         super().__init__(llm, "", "CompletionStrategy", seed)
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=100, previous_responses=None):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=500, previous_responses=None):
         # TODO: test with different mumber of max_plan_tokens (first few 100 is even better)
         # TODO: 3/27/26: Vary max_plan_tokens and make sure essence of solution is within these 500 tokens(so make sure that 500 is enough) --> treat as hyperparameter and just test around(no good way to test it)
         # TODO: 3/27/26: Thinking models tend to do bad with <think></think> because training doesn't condition on it
@@ -226,13 +210,13 @@ class CompletionStrategy(Strategy):
             outputs = self.llm.chat([
                 [
                     {
-                        "role": "system", "content": f"First, use <think>...</think> tags to reason step-by-step. After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."
+                        "role": "system", "content": f"Solve this problem step by step. Ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."
                     }, 
                     {
                         "role": "user", "content": prompt
                     }
                 ] 
-            for prompt in user_prompts], sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": True})
+            for prompt in user_prompts], sampling_params=sampling_params) # , chat_template_kwargs={"enable_thinking": True})
 
             # import pdb; pdb.set_trace()
 

@@ -35,7 +35,7 @@ strategy = CompletionStrategy(llm=llm.llm, seed=seed)
 previous_responses_fn = "2026-03-30 13:01:04.475791_bon_8_strategy_None.json"
 with open(previous_responses_fn, "r") as f:
     previous_responses = {best_of_n: data["responses"] for best_of_n, data in json.load(f).items()} # dict of best of n to "responses" (list of dicts)
-# previous_responses = None
+previous_responses = None
 
 data = reasoning_gym.create_dataset(dataset_type, size=num_examples, min_numbers=level, max_numbers=level, seed=seed)
 # load the questions
