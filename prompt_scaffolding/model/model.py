@@ -31,7 +31,8 @@ class Model:
                     bon_previous_responses = None
                 else:
                     bon_previous_responses = previous_responses[str(best_of_n)]
-                organized_outputs[best_of_n] = strategy.generate_prompts(prompts, best_of_n, temperature, previous_responses=bon_previous_responses)
+                max_plan_tokens = 500
+                organized_outputs[best_of_n] = strategy.generate_prompts(prompts, best_of_n, temperature, max_plan_tokens=max_plan_tokens, previous_responses=bon_previous_responses)
                 new_request_prompts = organized_outputs[best_of_n]["generated_diverse_prompts"]
 
                 organized_outputs[best_of_n]["responses"] = []
@@ -41,11 +42,13 @@ class Model:
                 
                 # loop through the question prompts and then through diversified prompts to generate the results
                 for j, (diverse_request_prompts, og_prompt) in enumerate(zip(new_request_prompts, prompts)):
-                    if previous_responses is None: # if we're regenerating
+                    if previous_responses is None or strategy.name != "CompletionStrategy": # if we're regenerating
                         if strategy.name == "CompletionStrategy":
+                            print("Completion Continuing Generation", file=sys.stderr)
                             formatted_variants = [f"<|im_start|>system\nAfter thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}.<|im_end|>\n<|im_start|>user\n{og_prompt}<|im_end|>\n<|im_start|>assistant\n{diverse_prompt}" for diverse_prompt in diverse_request_prompts]
                             outputs = self.llm.generate(formatted_variants, sampling_params=sampling_params)
                         else:
+                            print("Non-Completion Generating Solutions", file=sys.stderr)
                             formatted_variants = [[{"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."}, {"role": "user", "content": og_prompt + "\n" + diverse_prompt + answer_instruction}] for diverse_prompt in diverse_request_prompts]
                             outputs = self.llm.chat(formatted_variants, sampling_params=sampling_params)
                     
@@ -53,8 +56,8 @@ class Model:
                         organized_outputs[best_of_n]["total_tokens"][j] += sum(len(request_output.outputs[0].token_ids) for request_output in outputs)
                     else:
                         # use indexes to choose the responses and get total_tokens
-                        organized_outputs[best_of_n]["responses"].append([previous_responses[str(best_of_n)][j][index] for index in organized_outputs[best_of_n]["indexes"][j] if index < len(previous_responses[j])])
-                        organized_outputs[best_of_n]["total_tokens"][j] += sum(len(response["token_ids"]) for response in organized_outputs[best_of_n]["responses"][-1])
+                        organized_outputs[best_of_n]["responses"].append([previous_responses[str(best_of_n)][j][index] for index in organized_outputs[best_of_n]["indexes"][j] if index < len(previous_responses[str(best_of_n)][j])])
+                        organized_outputs[best_of_n]["total_tokens"][j] += sum(max(len(response["token_ids"])-max_plan_tokens, 0) for response in organized_outputs[best_of_n]["responses"][-1])
 
             return organized_outputs
         else:
@@ -62,6 +65,7 @@ class Model:
             # if not use user hyperparameters to generate results from prompt
             sampling_params = SamplingParams(n=max(best_of_ns), temperature=temperature, top_p=0.95, max_tokens=max_tokens, seed=self.seed)
             # Pass system prompt and answer_instructions when no strategy is used
+            print("None Generating Solutions", file=sys.stderr)
             outputs = self.llm.chat([[
                 {"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."},
                 {"role": "user", "content": prompt + "\n" + answer_instruction}
@@ -76,6 +80,6 @@ class Model:
                 for i, request_output in enumerate(outputs):
                     selected = random.sample(range(max(best_of_ns)), best_of_n)
                     organized_outputs[best_of_n]["responses"].append([request_output.outputs[select] for select in selected])
-                    organized_outputs[best_of_n]["total_tokens"].append(sum(len(single_output.token_ids) for single_output in request_output.outputs))
+                    organized_outputs[best_of_n]["total_tokens"].append(sum(len(request_output.outputs[select].token_ids) for select in selected))
 
             return organized_outputs

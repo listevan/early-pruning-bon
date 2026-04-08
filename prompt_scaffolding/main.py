@@ -15,11 +15,11 @@ random.seed(seed)
 # dataset hyperparameters
 dataset_type = "countdown"
 level = 6
-num_examples = 10 # TODO 3/27/26: Can go up to 30, no need for 100 right
+num_examples = 30 # TODO 3/27/26: Can go up to 30, no need for 100 right
 
 # model hyperparameters
 temperature = 0.9
-best_of_ns = [8]# [1,2,4,8,16] # 32 is way too large for A40 right now...
+best_of_ns = [1,2,4,8] # 32 is way too large for A40 right now...
 model="Qwen/Qwen3-4B-Instruct-2507" # TODO: --> 3/13/26: Qwen-4B-instruct-2507 for shorter CoT and see if better
 # model = "Qwen/Qwen3-0.6B"
 
@@ -32,17 +32,17 @@ llm = Model(model, seed=seed)
 strategy = CompletionStrategy(llm=llm.llm, seed=seed)
 # strategy = None
 
-previous_responses_fn = "2026-03-30 13:01:04.475791_bon_8_strategy_None.json"
+previous_responses_fn = "2026-04-07 04:31:58.307539_bon_1_2_4_8_strategy_None.json"
 with open(previous_responses_fn, "r") as f:
     previous_responses = {best_of_n: data["responses"] for best_of_n, data in json.load(f).items()} # dict of best of n to "responses" (list of dicts)
-previous_responses = None
+# previous_responses = None
 
 data = reasoning_gym.create_dataset(dataset_type, size=num_examples, min_numbers=level, max_numbers=level, seed=seed)
 # load the questions
 prompts = [entry["question"] for entry in data]
 
 # generate responses
-outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy)
+outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy, previous_responses=previous_responses)
 
 def clean_math_string(line):
     # 1. Remove \boxed{ and the closing }
@@ -84,15 +84,16 @@ for best_of_n in best_of_ns:
 
     for i, request_outputs in enumerate(bon_outputs["responses"]):            
         # get the best score from the selected candidate solutions
-        best_score_for_task = -1
+        best_score_for_task = 0
         best_response_text = ""
         best_prompt = ""
 
         # print(request_outputs)
         for j, candidate in enumerate(request_outputs):
             # remove <think></think> tags to get solution
-            match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", candidate.text, re.DOTALL)
-            candidate_text = match.group(1) if match else candidate.text  
+            raw_text = candidate.text if hasattr(candidate, 'text') else candidate.get("text", "")
+            match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", raw_text, re.DOTALL)
+            candidate_text = match.group(1) if match else raw_text  
             candidate_text = extract_answer(candidate_text)
 
             # print(f"===\nFor candidate, found best match : {}\n")

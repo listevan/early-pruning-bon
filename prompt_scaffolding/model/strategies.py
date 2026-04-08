@@ -34,7 +34,8 @@ class Strategy(ABC):
         # create sampling params for model to determine if it's unique
         sampling_params = SamplingParams(temperature=0.1, top_p=0.95, max_tokens=max_selection_tokens, seed=self.seed)
 
-        number_choices = 4
+        # number_choices = max(1, len(generated_prompts[0]) // 2)
+                    # 4. Select {number_choices} of the most diverse approaches.
         prompts = [[
             {
                 "role": "user", 
@@ -51,7 +52,6 @@ class Strategy(ABC):
                     1. Analyze the underlying method or algorithm of each partial solution. Ignore superficial differences (like different variable names or slight phrasing changes).
                     2. Compare each approach to the others to group them by core logic. 
                     3. Prune solutions that might lead to the same outcome.
-                    4. Select {number_choices} of the most diverse approaches.
 
                     ### Output Format:
                     First, provide your step-by-step comparison inside <reasoning> tags.
@@ -70,26 +70,33 @@ class Strategy(ABC):
         ] for user_prompt, generated_prompt in zip(user_prompts, generated_prompts)]
 
         # get diverse prompts
+        print("Generating Diverse Indexes", file=sys.stderr)
         outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
         # print("Diverse prompt outputs:", [out.outputs[0].text for out in outputs])
         total_tokens = [len(request_output.outputs[0].token_ids) for request_output in outputs]
 
         # return the prompts but as a list (questions) of lists (unique prompts)
         indexes = []
+        reasonings = []
         for output in outputs:
             text = self._extract_content(output.outputs[0].text)
+            # print(text, file=sys.stderr)
             
             # 1. Isolate the results block to avoid picking up reasoning indices
             results_match = re.search(r'<results>(.*?)</results>', text, re.DOTALL)
+            reasoning_match = re.search(r'<reasoning>(.*?)</reasoning>', text, re.DOTALL)
+
             results_text = results_match.group(1) if results_match else text # fallback to full text if tags fail
+            reasoning_text = reasoning_match.group(1) if results_match else text
             
             # 2. Extract indices only from the results block
             indexes_2_int = [int(t.replace("i", "")) for t in re.findall(r'i\d+', results_text)] 
             indexes.append(sorted(list(set(indexes_2_int))))
+            reasonings.append(reasoning_text)
 
         # print("Picked indicies: ", indexes)
         
-        return indexes, total_tokens
+        return indexes, reasonings, total_tokens
     
     def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000, previous_responses=None):
         # TODO 3/27/26: Get 8 full solutions(full solutions) --> and then truncate each of the full solutions so no need to rerun "generate_prompts"
@@ -115,6 +122,7 @@ class Strategy(ABC):
         structured_params = StructuredOutputsParams(regex=custom_tag_regex)
         sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, stop=["</plan>"], include_stop_str_in_output=True, max_tokens=max_plan_tokens, structured_outputs=structured_params, seed=self.seed)
         # generate strategy results without thinking
+        print("Generating Initial Prompts", file=sys.stderr)
         outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
         total_tokens = [sum([len(plan.token_ids) for plan in request_output.outputs]) for request_output in outputs]
 
@@ -137,14 +145,14 @@ class Strategy(ABC):
             generated_prompts.append(request_prompts) 
         # print(f"original plans are: {generated_prompts[random_question]}")
 
-        indexes, diversity_tokens = self._get_diverse_prompts(user_prompts, generated_prompts, max_selection_tokens)
+        indexes, reasonings, diversity_tokens = self._get_diverse_prompts(user_prompts, generated_prompts, max_selection_tokens)
         total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
 
         generated_diverse_prompts = [[generated_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(generated_prompts[i])] for i, diverse_indexes in enumerate(indexes)]
         # print(f"diverse plans are: {generated_diverse_prompts[random_question]}")
         # print(f"------------------------------------------------------------------------------------------------------------")
         
-        return {"generated_prompts": generated_prompts, "indexes": indexes, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
+        return {"generated_prompts": generated_prompts, "indexes": indexes, "reasonings": reasonings, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
 
 class HypothesisStrategy(Strategy):
     def __init__(self, llm, seed=42):
@@ -191,7 +199,7 @@ class UserStrategy(Strategy):
             ]
         ] * len(user_prompts)
 
-        return {"generated_prompts": new_prompts, "indexes": range(len(new_prompts)), "generated_diverse_prompts": new_prompts, "total_tokens": 0}
+        return {"generated_prompts": new_prompts, "indexes": range(len(new_prompts)), "reasonings": [], "generated_diverse_prompts": new_prompts, "total_tokens": [0] * len(user_prompts)}
 
 class CompletionStrategy(Strategy):
     def __init__(self, llm, seed=42):
@@ -207,6 +215,7 @@ class CompletionStrategy(Strategy):
 
         if previous_responses is None:
             sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_plan_tokens, seed=self.seed)
+            print("Generating Completion Initial Response", file=sys.stderr)
             outputs = self.llm.chat([
                 [
                     {
@@ -231,10 +240,10 @@ class CompletionStrategy(Strategy):
                 new_prompts.append([tokenizer.decode(response["token_ids"][:max_plan_tokens]) for response in request_output])
                 total_tokens.append(sum([min(max_plan_tokens, len(response["token_ids"])) for response in request_output]))
         
-        indexes, diversity_tokens = self._get_diverse_prompts(user_prompts, new_prompts, max_selection_tokens)
+        indexes, reasonings, diversity_tokens = self._get_diverse_prompts(user_prompts, new_prompts, max_selection_tokens)
         total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
 
         generated_diverse_prompts = [[new_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(new_prompts[i])] for i, diverse_indexes in enumerate(indexes)]       
         
-        return {"generated_prompts": new_prompts, "indexes": indexes, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
+        return {"generated_prompts": new_prompts, "indexes": indexes, "reasonings": reasonings, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
         
