@@ -30,17 +30,20 @@ class Strategy(ABC):
             return match.group(1).strip()
         return text.strip()
     
-    def _get_diverse_prompts(self, user_prompts, generated_prompts, max_selection_tokens=16000): # TODO: 3/27/26: let max_selection_tokens be sufficiently enough
+    def _get_diverse_prompts(self, user_prompts, generated_prompts, prune_ratio=1, max_selection_tokens=16000): # TODO: 3/27/26: let max_selection_tokens be sufficiently enough
         # create sampling params for model to determine if it's unique
-        sampling_params = SamplingParams(temperature=0.1, top_p=0.95, max_tokens=max_selection_tokens, seed=self.seed)
+        sampling_params = SamplingParams(temperature=0.7, top_p=0.8, top_k=20, max_tokens=max_selection_tokens, seed=self.seed)
 
-        # number_choices = max(1, len(generated_prompts[0]) // 2)
-                    # 4. Select {number_choices} of the most diverse approaches.
+        number_choices = max(1, len(generated_prompts[0]) // prune_ratio)
+        
+        # Conditionally format the 5th step
+        step_5_instruction = f"\n5. Select {number_choices} of the most diverse approaches." if number_choices != 1 else ""
+
         prompts = [[
             {
                 "role": "user", 
                 "content": f"""
-                    You are an expert evaluator. Do NOT solve the problem. Your task is to identify the unique logical approaches from a set of partial solutions.
+                    You are an expert evaluator. Do NOT solve the problem. Your task is to filter out incorrect approaches and identify the unique, valid approaches from a set of partial solutions.
 
                     ### The Problem:
                     {user_prompt}
@@ -49,21 +52,22 @@ class Strategy(ABC):
                     {"".join([f"<example id='i{i}'>\n{request_generated_prompt.replace('<think>', '')}\n</example>\n" for i, request_generated_prompt in enumerate(generated_prompt)])}
 
                     ### Instructions:
-                    1. Analyze the underlying method or algorithm of each partial solution. Ignore superficial differences (like different variable names or slight phrasing changes).
-                    2. Compare each approach to the others to group them by core logic. 
-                    3. Prune solutions that might lead to the same outcome.
+                    1. Analyze the underlying method or algorithm of each partial solution for both uniqueness and correctness. Ignore superficial differences (like different variable names or slight phrasing changes).
+                    2. Identify and discard any partial solutions that contain logical errors, flawed math, or incorrect assumptions.
+                    3. Compare the remaining valid approaches to each other to group them by core logic. 
+                    4. Prune redundant solutions that use the same valid logic, keeping only one representative index per unique, correct approach.{step_5_instruction}
 
                     ### Output Format:
-                    First, provide your step-by-step comparison inside <reasoning> tags.
+                    First, provide your step-by-step comparison inside <reasoning> tags. Explicitly state if an approach is discarded due to being incorrect or due to being a duplicate.
                     Then, output ONLY the selected indices inside <results> tags, with each index on a new line. 
 
                     Example Output:
                     <reasoning>
-                    i0 uses a dynamic programming approach. i1 uses the exact same approach but renames the array, so it is a duplicate. i2 introduces a unique recursive approach.
+                    i0 uses a dynamic programming approach and is logically sound. i1 uses the exact same approach but renames the array, so it is a redundant duplicate. i2 introduces a recursive approach, but it contains a fundamental flaw in its base case, so it is incorrect and discarded. i3 proposes a valid, unique greedy approach.
                     </reasoning>
                     <results>
                     i0
-                    i2
+                    i3
                     </results>
                 """
             }
@@ -98,7 +102,7 @@ class Strategy(ABC):
         
         return indexes, reasonings, total_tokens
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000, previous_responses=None):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000, prune_ratio=1, previous_responses=None):
         # TODO 3/27/26: Get 8 full solutions(full solutions) --> and then truncate each of the full solutions so no need to rerun "generate_prompts"
             # TODO: to do the above, tokenize full solutions --> then truncate to first 500 tokens
         total_tokens = []
@@ -145,7 +149,7 @@ class Strategy(ABC):
             generated_prompts.append(request_prompts) 
         # print(f"original plans are: {generated_prompts[random_question]}")
 
-        indexes, reasonings, diversity_tokens = self._get_diverse_prompts(user_prompts, generated_prompts, max_selection_tokens)
+        indexes, reasonings, diversity_tokens = self._get_diverse_prompts(user_prompts, generated_prompts, max_selection_tokens, prune_ratio)
         total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
 
         generated_diverse_prompts = [[generated_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(generated_prompts[i])] for i, diverse_indexes in enumerate(indexes)]
@@ -205,7 +209,7 @@ class CompletionStrategy(Strategy):
     def __init__(self, llm, seed=42):
         super().__init__(llm, "", "CompletionStrategy", seed)
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=500, previous_responses=None):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=500, prune_ratio=1, previous_responses=None):
         # TODO: test with different mumber of max_plan_tokens (first few 100 is even better)
         # TODO: 3/27/26: Vary max_plan_tokens and make sure essence of solution is within these 500 tokens(so make sure that 500 is enough) --> treat as hyperparameter and just test around(no good way to test it)
         # TODO: 3/27/26: Thinking models tend to do bad with <think></think> because training doesn't condition on it
@@ -240,7 +244,7 @@ class CompletionStrategy(Strategy):
                 new_prompts.append([tokenizer.decode(response["token_ids"][:max_plan_tokens]) for response in request_output])
                 total_tokens.append(sum([min(max_plan_tokens, len(response["token_ids"])) for response in request_output]))
         
-        indexes, reasonings, diversity_tokens = self._get_diverse_prompts(user_prompts, new_prompts, max_selection_tokens)
+        indexes, reasonings, diversity_tokens = self._get_diverse_prompts(user_prompts, new_prompts, max_selection_tokens, prune_ratio)
         total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
 
         generated_diverse_prompts = [[new_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(new_prompts[i])] for i, diverse_indexes in enumerate(indexes)]       

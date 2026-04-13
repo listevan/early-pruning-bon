@@ -1,5 +1,24 @@
 import json
 import matplotlib.pyplot as plt
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Parse result filenames.")
+
+    parser.add_argument(
+        "--none_fn", 
+        type=str, 
+        default="2026-04-07 04:31:58.307539_bon_1_2_4_8_strategy_None.json", 
+        help="Filename of results for no strategy completion"
+    )
+    parser.add_argument(
+        "--completion_fn", 
+        type=str, 
+        default="2026-04-07 17:13:46.722758_bon_1_2_4_8_strategy_CompletionStrategy.json", 
+        help="Filename of results for completion strategy completion"
+    )
+
+    return parser.parse_args()
 
 def parse_results(results_fn):
     with open(results_fn, "r") as f:
@@ -7,18 +26,27 @@ def parse_results(results_fn):
     
     x = []
     y = []
+    y_scores = []
     labels = []
     for bon in results.keys():
         x.append(float(sum(results[bon]["total_tokens"])) / len(results[bon]["total_tokens"]))
         y.append(float(sum([score[2] for score in results[bon]["results"]])) / len(results[bon]["results"]))
+        y_scores.append(sum([score[2] for score in results[bon]["results"]]))
         labels.append(bon)
     
-    return x, y, labels
+    return x, y, y_scores, labels
 
 if __name__ == "__main__":
-    none_x, none_y, none_labels = parse_results("2026-04-07 04:31:58.307539_bon_1_2_4_8_strategy_None.json")
-    completion_x, completion_y, completion_labels = parse_results("2026-04-07 17:13:46.722758_bon_1_2_4_8_strategy_CompletionStrategy.json")
+    args = parse_args()
+    none_fn = args.none_fn
+    completion_fn = args.completion_fn
+
+    none_x, none_y, none_y_scores, none_labels = parse_results(none_fn)
+    completion_x, completion_y, completion_y_scores, completion_labels = parse_results(completion_fn)
     
+    # result comparison plot
+    plt.figure()
+
     plt.scatter(none_x, none_y, color="blue", label="None Strategy")
     plt.scatter(completion_x, completion_y, color="red", label="Completion Strategy")
 
@@ -33,7 +61,16 @@ if __name__ == "__main__":
     plt.ylabel('Average Score')
     plt.legend()
 
-    plt.savefig("graph_comparison.png")
+    plt.savefig(f"{completion_fn.replace(".json", "")}_graph_comparison.png")
 
+    # true positive comparison plot
+    plt.figure()
 
-        
+    plt.scatter(completion_labels, [float(a) / b for a, b in zip(completion_y_scores, none_y_scores)])
+
+    plt.title('Selection Accuracy for Completion Strategies')
+    plt.xlabel('Best of N')
+    plt.ylabel('Selection Accuracy')
+    plt.legend()
+
+    plt.savefig(f"{completion_fn.replace(".json", "")}_selection_accuracy.png")

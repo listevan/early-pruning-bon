@@ -1,0 +1,14 @@
+Job is starting on gpub038.delta.ncsa.illinois.edu
+Using uv from: /u/sl212/.local/bin/uv
+Starting independent hyperparameter sweeps...
+Errors will be appended to slurm-17581735.err
+------------------------------------------------------
+Starting Sweep 1: max_plan_tokens (prune_ratio defaults to 1)
+Running: max_plan_tokens=500
+Running: max_plan_tokens=750
+Running: max_plan_tokens=1000
+Running: max_plan_tokens=1250
+Running: max_plan_tokens=1500
+------------------------------------------------------
+Starting Sweep 2: prune_ratio (max_plan_tokens defaults to 500)
+Running: prune_ratio=1

@@ -8,22 +8,78 @@ import sys
 
 import datetime
 import json
+import argparse
 
 seed = 42
 random.seed(seed)
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Parse dataset and model hyperparameters.")
+
+    # Dataset hyperparameters
+    parser.add_argument(
+        "--dataset_type", 
+        type=str, 
+        default="countdown", 
+        help="Type of dataset being used (default: 'countdown')"
+    )
+    parser.add_argument(
+        "--level", 
+        type=int, 
+        default=6, 
+        help="Difficulty level or stage of the dataset (default: 6)"
+    )
+    parser.add_argument(
+        "--num_examples", 
+        type=int, 
+        default=30, 
+        help="Number of examples to process (default: 30)"
+    )
+
+    # Model hyperparameters
+    parser.add_argument(
+        "--temperature", 
+        type=float, 
+        default=1.0, 
+        help="Sampling temperature for the model (default: 1.0)"
+    )
+    parser.add_argument(
+        "--best_of_ns", 
+        type=int, 
+        nargs='+', 
+        default=[1, 2, 4, 8], 
+        help="List of integers for best-of-N sampling (default: 1 2 4 8). Provide space-separated values."
+    )
+    parser.add_argument(
+        "--max_plan_tokens", 
+        type=int, 
+        default=500, 
+        help="Number of tokens to generate before diversifying."
+    )
+    parser.add_argument(
+        "--prune_ratio", 
+        type=float, 
+        default=1, 
+        help="Will prune down to bon // prune_ratio results (at 1, will let model decide)"
+    )
+
+    return parser.parse_args()
+
+args = parse_args()
 # dataset hyperparameters
-dataset_type = "countdown"
-level = 6
-num_examples = 30 # TODO 3/27/26: Can go up to 30, no need for 100 right
+dataset_type = args.dataset_type
+level = args.level
+num_examples = args.num_examples
 
 # model hyperparameters
-temperature = 0.9
-best_of_ns = [1,2,4,8] # 32 is way too large for A40 right now...
-model="Qwen/Qwen3-4B-Instruct-2507" # TODO: --> 3/13/26: Qwen-4B-instruct-2507 for shorter CoT and see if better
-# model = "Qwen/Qwen3-0.6B"
+temperature = args.temperature
+best_of_ns = args.best_of_ns
+max_plan_tokens = args.max_plan_tokens
+prune_ratio = max(1, args.prune_ratio)
 
 # initialize model
+model="Qwen/Qwen3-4B-Instruct-2507"
+# model = "Qwen/Qwen3-0.6B"
 llm = Model(model, seed=seed)
 
 # model strategy, set to None if not using
@@ -42,7 +98,7 @@ data = reasoning_gym.create_dataset(dataset_type, size=num_examples, min_numbers
 prompts = [entry["question"] for entry in data]
 
 # generate responses
-outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy, previous_responses=previous_responses)
+outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy, prune_ratio=prune_ratio, previous_responses=previous_responses)
 
 def clean_math_string(line):
     # 1. Remove \boxed{ and the closing }
@@ -113,9 +169,9 @@ for best_of_n in best_of_ns:
         # store best results
         outputs[best_of_n]["results"].append((best_prompt, best_response_text, best_score_for_task))
 
-    print(f"best_of_{best_of_n} score is: {float(sum(result[2] for result in outputs[best_of_n]["results"])) / num_examples} and used average token count of: {float(sum(outputs[best_of_n]["total_tokens"])) / num_examples}")
+    print(f"best_of_{best_of_n} score is: {float(sum(result[2] for result in outputs[best_of_n]["results"])) / num_examples} and used average token count of: {float(sum(outputs[best_of_n]["total_tokens"])) / num_examples}", file=sys.stderr)
 
-fname = f"{datetime.datetime.now()}_bon_{'_'.join(list(map(str, best_of_ns)))}_strategy_{strategy.name if strategy else "None"}.json"
+fname = f"{datetime.datetime.now()}_bon_{'_'.join(list(map(str, best_of_ns)))}_strategy_{strategy.name if strategy else "None"}_plan_{str(max_plan_tokens)}_prune_{str(prune_ratio)}.json"
 with open(fname, "w") as f:
     json.dump(outputs, f, indent=4, default=vllm_encoder)
     
@@ -125,7 +181,7 @@ def format_json_inplace(filepath, indent=4):
         try:
             data = json.load(f)
         except json.JSONDecodeError:
-            print(f"Error: {filepath} is not valid JSON.")
+            print(f"Error: {filepath} is not valid JSON.", file=sys.stderr)
             return
 
     # 2. Create the standard pretty-printed string

@@ -19,7 +19,7 @@ class Model:
         self.llm = LLM(model=model_name, tensor_parallel_size=1, max_model_len=60000)# max_model_len=65536)
         self.seed = seed
 
-    def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, strategy=None, previous_responses=None):
+    def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None):
         # see if user decided to use a strategy
         if strategy:
             organized_outputs = {}
@@ -31,13 +31,12 @@ class Model:
                     bon_previous_responses = None
                 else:
                     bon_previous_responses = previous_responses[str(best_of_n)]
-                max_plan_tokens = 500
-                organized_outputs[best_of_n] = strategy.generate_prompts(prompts, best_of_n, temperature, max_plan_tokens=max_plan_tokens, previous_responses=bon_previous_responses)
+                organized_outputs[best_of_n] = strategy.generate_prompts(prompts, best_of_n, temperature, max_plan_tokens=max_plan_tokens, prune_ratio=1, previous_responses=bon_previous_responses)
                 new_request_prompts = organized_outputs[best_of_n]["generated_diverse_prompts"]
 
                 organized_outputs[best_of_n]["responses"] = []
                 
-                # define sampling parameters with user hyperparameters     
+                # define sampling parameters with user hyperparameters, TODO 4/10: try top_p=1     
                 sampling_params = SamplingParams(temperature=temperature, top_p=0.95, stop=["</answer>"], include_stop_str_in_output=True, max_tokens=max_tokens, seed=self.seed)
                 
                 # loop through the question prompts and then through diversified prompts to generate the results
@@ -61,7 +60,7 @@ class Model:
 
             return organized_outputs
         else:
-            print("Strategy is none...")
+            print("Strategy is none...", file=sys.stderr)
             # if not use user hyperparameters to generate results from prompt
             sampling_params = SamplingParams(n=max(best_of_ns), temperature=temperature, top_p=0.95, max_tokens=max_tokens, seed=self.seed)
             # Pass system prompt and answer_instructions when no strategy is used
