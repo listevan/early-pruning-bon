@@ -31,7 +31,7 @@ class Model:
                     bon_previous_responses = None
                 else:
                     bon_previous_responses = previous_responses[str(best_of_n)]
-                organized_outputs[best_of_n] = strategy.generate_prompts(prompts, best_of_n, temperature, max_plan_tokens=max_plan_tokens, prune_ratio=1, previous_responses=bon_previous_responses)
+                organized_outputs[best_of_n] = strategy.generate_prompts(prompts, best_of_n, temperature, max_plan_tokens=max_plan_tokens, prune_ratio=prune_ratio, previous_responses=bon_previous_responses)
                 new_request_prompts = organized_outputs[best_of_n]["generated_diverse_prompts"]
 
                 organized_outputs[best_of_n]["responses"] = []

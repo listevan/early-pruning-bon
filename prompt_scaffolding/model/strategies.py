@@ -37,7 +37,7 @@ class Strategy(ABC):
         number_choices = max(1, len(generated_prompts[0]) // prune_ratio)
         
         # Conditionally format the 5th step
-        step_5_instruction = f"\n5. Select {number_choices} of the most diverse approaches." if number_choices != 1 else ""
+        step_4_instruction = f"\n4. Select {number_choices} of the most diverse approaches." if  prune_ratio != 1 else ""
 
         prompts = [[
             {
@@ -52,13 +52,12 @@ class Strategy(ABC):
                     {"".join([f"<example id='i{i}'>\n{request_generated_prompt.replace('<think>', '')}\n</example>\n" for i, request_generated_prompt in enumerate(generated_prompt)])}
 
                     ### Instructions:
-                    1. Analyze the underlying method or algorithm of each partial solution for both uniqueness and correctness. Ignore superficial differences (like different variable names or slight phrasing changes).
-                    2. Identify and discard any partial solutions that contain logical errors, flawed math, or incorrect assumptions.
-                    3. Compare the remaining valid approaches to each other to group them by core logic. 
-                    4. Prune redundant solutions that use the same valid logic, keeping only one representative index per unique, correct approach.{step_5_instruction}
+                    1. Analyze the underlying method or algorithm of each partial solution. Ignore superficial differences (like different variable names or slight phrasing changes).
+                    2. Compare each approach to the others to group them by core logic. 
+                    3. Prune solutions that might lead to the same outcome.{step_4_instruction}
 
                     ### Output Format:
-                    First, provide your step-by-step comparison inside <reasoning> tags. Explicitly state if an approach is discarded due to being incorrect or due to being a duplicate.
+                    First, provide your step-by-step comparison inside <reasoning> tags.
                     Then, output ONLY the selected indices inside <results> tags, with each index on a new line. 
 
                     Example Output:
@@ -76,7 +75,7 @@ class Strategy(ABC):
         # get diverse prompts
         print("Generating Diverse Indexes", file=sys.stderr)
         outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
-        # print("Diverse prompt outputs:", [out.outputs[0].text for out in outputs])
+        print("Diverse prompt outputs:", [out.outputs[0].text for out in outputs], file=sys.stderr)
         total_tokens = [len(request_output.outputs[0].token_ids) for request_output in outputs]
 
         # return the prompts but as a list (questions) of lists (unique prompts)
@@ -91,7 +90,7 @@ class Strategy(ABC):
             reasoning_match = re.search(r'<reasoning>(.*?)</reasoning>', text, re.DOTALL)
 
             results_text = results_match.group(1) if results_match else text # fallback to full text if tags fail
-            reasoning_text = reasoning_match.group(1) if results_match else text
+            reasoning_text = reasoning_match.group(1) if reasoning_match else text
             
             # 2. Extract indices only from the results block
             indexes_2_int = [int(t.replace("i", "")) for t in re.findall(r'i\d+', results_text)] 
@@ -149,7 +148,7 @@ class Strategy(ABC):
             generated_prompts.append(request_prompts) 
         # print(f"original plans are: {generated_prompts[random_question]}")
 
-        indexes, reasonings, diversity_tokens = self._get_diverse_prompts(user_prompts, generated_prompts, max_selection_tokens, prune_ratio)
+        indexes, reasonings, diversity_tokens = self._get_diverse_prompts(user_prompts, generated_prompts, prune_ratio, max_selection_tokens)
         total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
 
         generated_diverse_prompts = [[generated_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(generated_prompts[i])] for i, diverse_indexes in enumerate(indexes)]
@@ -244,7 +243,7 @@ class CompletionStrategy(Strategy):
                 new_prompts.append([tokenizer.decode(response["token_ids"][:max_plan_tokens]) for response in request_output])
                 total_tokens.append(sum([min(max_plan_tokens, len(response["token_ids"])) for response in request_output]))
         
-        indexes, reasonings, diversity_tokens = self._get_diverse_prompts(user_prompts, new_prompts, max_selection_tokens, prune_ratio)
+        indexes, reasonings, diversity_tokens = self._get_diverse_prompts(user_prompts, new_prompts, prune_ratio, max_selection_tokens)
         total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
 
         generated_diverse_prompts = [[new_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(new_prompts[i])] for i, diverse_indexes in enumerate(indexes)]       

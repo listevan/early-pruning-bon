@@ -172,6 +172,7 @@ for best_of_n in best_of_ns:
     print(f"best_of_{best_of_n} score is: {float(sum(result[2] for result in outputs[best_of_n]["results"])) / num_examples} and used average token count of: {float(sum(outputs[best_of_n]["total_tokens"])) / num_examples}", file=sys.stderr)
 
 fname = f"{datetime.datetime.now()}_bon_{'_'.join(list(map(str, best_of_ns)))}_strategy_{strategy.name if strategy else "None"}_plan_{str(max_plan_tokens)}_prune_{str(prune_ratio)}.json"
+print(fname)
 with open(fname, "w") as f:
     json.dump(outputs, f, indent=4, default=vllm_encoder)
     

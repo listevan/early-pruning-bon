@@ -40,6 +40,7 @@ if __name__ == "__main__":
     args = parse_args()
     none_fn = args.none_fn
     completion_fn = args.completion_fn
+    print(completion_fn)
 
     none_x, none_y, none_y_scores, none_labels = parse_results(none_fn)
     completion_x, completion_y, completion_y_scores, completion_labels = parse_results(completion_fn)
