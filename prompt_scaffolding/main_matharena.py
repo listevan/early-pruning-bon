@@ -8,20 +8,25 @@ import sys
 import datetime
 import json
 
+matharena_path = "/u/stevex2/prompt_scaffolding/CS497/matharena/src"
+if matharena_path not in sys.path:
+    sys.path.append(matharena_path)
+from matharena.parser import extract_answer, parse_answer, check_answers
+
 seed = 42
 random.seed(seed)
 
-dataset_path = "MathArena/hmmt_feb_2025"Example subset, you can change this to other MathArena splits
+dataset_path = "MathArena/hmmt_feb_2025"
 dataset_split = "train" # no test set...
-num_examples = 30 
+num_examples = 30
 
-temperature = 0.9
-best_of_ns = [8]
+temperature = 1.0
+best_of_ns = [2]
 model = "Qwen/Qwen3-4B-Instruct-2507" 
 
 llm = Model(model, seed=seed)
 
-strategy = CompletionStrategy(llm=llm.llm, seed=seed)
+strategy = None # CompletionStrategy(llm=llm.llm, seed=seed)
 
 data = load_dataset(dataset_path, split=dataset_split)
 
@@ -33,30 +38,6 @@ true_answers = [str(entry["answer"]) for entry in data]
 
 outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy)
 
-def clean_math_string(line):
-    line = re.sub(r'\\boxed\{', '', line)
-    line = re.sub(r'\}', '', line)
-    
-    line = line.replace(r'\times', '*')
-    line = line.replace(r'\cdot', '*')
-    line = line.replace(r'\div', '/')
-    line = line.replace(r'\frac', '/')
-    
-    return line.strip()
-
-def extract_answer(text):
-    match = re.search(r'<answer>(.*?)</answer>', text, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return text
-
-def score_math_answer(predicted, ground_truth):
-    pred_cleaned = clean_math_string(str(predicted)).lower()
-    gt_cleaned = clean_math_string(str(ground_truth)).lower()
-    
-    if pred_cleaned == gt_cleaned:
-        return 1
-    return 0
 
 def vllm_encoder(obj):
     if hasattr(obj, '__dict__'):
@@ -77,9 +58,16 @@ for best_of_n in best_of_ns:
         for j, candidate in enumerate(request_outputs):
             match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", candidate.text, re.DOTALL)
             candidate_text = match.group(1) if match else candidate.text  
-            candidate_text = extract_answer(candidate_text)
-
-            score = score_math_answer(candidate_text, true_answers[i])
+            
+            match_answer = re.search(r'<answer>(.*?)</answer>', candidate_text, re.DOTALL)
+            # import pdb; pdb.set_trace()
+            if match_answer:
+                candidate_text = candidate_text.replace(match_answer.group(0), f"\\boxed{{{match_answer.group(1).strip()}}}")
+            
+            pred_val, _ = extract_answer(candidate_text, strict_parsing=False, parse=True)
+            expected_val, _ = parse_answer(str(true_answers[i]))
+            
+            score = 1 if check_answers(pred_val, expected_val) else 0
 
             if score != 1:
                 score = 0
@@ -89,7 +77,7 @@ for best_of_n in best_of_ns:
                 best_response_text = candidate_text
                 if bon_outputs["generated_diverse_prompts"]:
                     best_prompt = bon_outputs["generated_diverse_prompts"][i][j]
-
+        print("Best response text:", pred_val, " with score", score, "-> ans is: ", true_answers[i])
         outputs[best_of_n]["results"].append((best_prompt, best_response_text, best_score_for_task))
 
     print(f"best_of_{best_of_n} score is: {float(sum(result[2] for result in outputs[best_of_n]['results'])) / num_examples} and used average token count of: {float(sum(outputs[best_of_n]['total_tokens'])) / num_examples}")

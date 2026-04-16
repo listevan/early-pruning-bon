@@ -6,17 +6,12 @@ import random
 import sys
 
 answer_instruction = """
-    \n\nEach number must be used at most once.\n
-    1. Provide your solution as a arithmetic expression (no '=' sign).\n
-    2. Do not include the target number in the expression.\n
-    3. Use '*' for multiplication.\n
-    4. Use '/' for division.\n
-    Do not include any other text or formatting for the final answer.
+    1. Do not attempt to answer with "0" if you do not know the solution. Attempt to solve the problem and provide a feasible answer.
 """
 
 class Model:
     def __init__(self, model_name: str, seed=42):
-        self.llm = LLM(model=model_name, tensor_parallel_size=1, max_model_len=60000)# max_model_len=65536)
+        self.llm = LLM(model=model_name, tensor_parallel_size=1, max_model_len=65536, gpu_memory_utilization=0.4)
         self.seed = seed
 
     def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, strategy=None, previous_responses=None):
@@ -48,7 +43,7 @@ class Model:
                         else:
                             formatted_variants = [[{"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."}, {"role": "user", "content": og_prompt + "\n" + diverse_prompt + answer_instruction}] for diverse_prompt in diverse_request_prompts]
                             outputs = self.llm.chat(formatted_variants, sampling_params=sampling_params)
-                    
+                        
                         organized_outputs[best_of_n]["responses"].append([request_output.outputs[0] for request_output in outputs])
                         organized_outputs[best_of_n]["total_tokens"][j] += sum(len(request_output.outputs[0].token_ids) for request_output in outputs)
                     else:
@@ -56,11 +51,16 @@ class Model:
                         organized_outputs[best_of_n]["responses"].append([previous_responses[str(best_of_n)][j][index] for index in organized_outputs[best_of_n]["indexes"][j] if index < len(previous_responses[j])])
                         organized_outputs[best_of_n]["total_tokens"][j] += sum(len(response["token_ids"]) for response in organized_outputs[best_of_n]["responses"][-1])
 
+                    organized_outputs[best_of_n]["full_responses"] = []
+                    for e in range(len(outputs)):
+                        full_response = diverse_request_prompts[e] + outputs[e].outputs[0].text
+                        organized_outputs[best_of_n]["full_responses"].append(full_response)
+                    
             return organized_outputs
         else:
             print("Strategy is none...")
             # if not use user hyperparameters to generate results from prompt
-            sampling_params = SamplingParams(n=max(best_of_ns), temperature=temperature, top_p=0.95, max_tokens=max_tokens, seed=self.seed)
+            sampling_params = SamplingParams(n=max(best_of_ns), temperature=temperature, top_p=1, max_tokens=max_tokens, seed=self.seed)
             # Pass system prompt and answer_instructions when no strategy is used
             outputs = self.llm.chat([[
                 {"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."},

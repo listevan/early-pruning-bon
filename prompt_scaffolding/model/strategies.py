@@ -6,14 +6,7 @@ from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
 import json
 
-answer_instruction = """
-    \n\nEach number must be used at most once.\n
-    1. Provide your solution as a arithmetic expression (no '=' sign).\n
-    2. Do not include the target number in the expression.\n
-    3. Use '*' for multiplication.\n
-    4. Use '/' for division.\n
-    Do not include any other text or formatting for the final answer.
-"""
+answer_instruction = ""
 
 class Strategy(ABC):
     def __init__(self, llm, prompt_strategy, name="Strategy", seed=42):
