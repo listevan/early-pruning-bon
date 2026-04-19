@@ -1,0 +1,25 @@
+# Custom vLLM solver config for CustomModelSolver
+# type: custom_model  <-- tells run_custom.py to use CustomModelSolver
+
+type: custom_model
+human_readable_id: Qwen3-4B-BoN
+
+# HuggingFace model ID (or local path)
+model: Qwen/Qwen3-4B-Instruct-2507
+
+# Inference hyperparameters
+temperature: 1.0
+max_tokens: 16384
+seed: 42
+
+# Best-of-N: number of candidate completions generated per problem
+best_of_n: 2
+
+# Diversification strategy – omit or set to null to disable.
+# Options: CompletionStrategy, HypothesisStrategy, PlanStrategy,
+#          ConceptStrategy, ReasoningStructureStrategy, UserStrategy
+strategy: null # CompletionStrategy
+
+# vLLM engine settings
+gpu_memory_utilization: 0.4
+max_model_len: 65536
