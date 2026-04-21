@@ -35,7 +35,7 @@ from collections import Counter
 from typing import Any, Generator
 from loguru import logger
 
-from matharena.parser import extract_answer
+from matharena.parser import extract_answer, parse_answer, check_answers
 from matharena.solvers.base_solver import BaseSolver
 from matharena.solvers.solver_response import SolverResponse
 
@@ -101,9 +101,10 @@ class CustomModelSolver(BaseSolver):
     _model_cache: dict[str, Model] = {}
 
     def __init__(self, solver_config, default_prompt_template,
-                 default_api_client_args, last_chance_prompt):
+                 default_api_client_args, last_chance_prompt, problem_answers=None):
         super().__init__(solver_config, default_prompt_template,
                          default_api_client_args, last_chance_prompt)
+        self.problem_answers = problem_answers
 
         mc = self.solver_config["model_config"]
 
@@ -194,17 +195,40 @@ class CustomModelSolver(BaseSolver):
         # bon_data["total_tokens"] : list[int]           (one entry per problem)
 
         for i, candidates in enumerate(bon_data["responses"]):
-            # ── Extract text from each candidate ────────────────────────────
             candidate_texts = [_extract_text(c) for c in candidates]
 
-            # ── Convert <answer>…</answer> → \boxed{…} ──────────────────────
-            boxed_texts = [_answer_tag_to_boxed(t) for t in candidate_texts]
+            best_text = None
+            problem_idx = batch_idx_to_problem_idx[i]
+            gold_answer_str = str(self.problem_answers[problem_idx]) if self.problem_answers else None
+            
+            clean_boxed_texts = []
+            extracted_parsed_answers = []
 
-            # ── Pick best candidate via majority vote on extracted answers ───
-            extracted = [extract_answer(t, strict_parsing=False)[0]
-                         for t in boxed_texts]
-            best_idx  = _pick_best(extracted)
-            best_text = boxed_texts[best_idx]
+            for t in candidate_texts:
+                # 1. Strip think logs
+                match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", t, re.DOTALL)
+                clean_t = match.group(1) if match else t
+
+                # 2. Convert to boxed
+                boxed_t = _answer_tag_to_boxed(clean_t)
+                clean_boxed_texts.append(boxed_t)
+
+                # 3. Extract parsed answer for grading / majority vote
+                if gold_answer_str is not None:
+                    pred_val, _ = extract_answer(boxed_t, strict_parsing=False, parse=True)
+                    expected_val, _ = parse_answer(gold_answer_str)
+                    
+                    if check_answers(pred_val, expected_val):
+                        best_text = boxed_t
+                        break  # Found correct answer (Pass@N Oracle)
+
+            if best_text is None:
+                # Fallback: Majority vote using parsed answers
+                for boxed_t in clean_boxed_texts:
+                    extracted_parsed_answers.append(extract_answer(boxed_t, strict_parsing=False, parse=True)[0])
+                
+                best_idx = _pick_best(extracted_parsed_answers)
+                best_text = clean_boxed_texts[best_idx]
 
             # ── Build SolverResponse ─────────────────────────────────────────
             conversation = [

@@ -13,13 +13,14 @@ max_tokens: 16384
 seed: 42
 
 # Best-of-N: number of candidate completions generated per problem
-best_of_n: 2
+best_of_n: 8
+prune_ratio: 1
 
 # Diversification strategy – omit or set to null to disable.
 # Options: CompletionStrategy, HypothesisStrategy, PlanStrategy,
 #          ConceptStrategy, ReasoningStructureStrategy, UserStrategy
-strategy: null # CompletionStrategy
+strategy: CompletionStrategy
 
 # vLLM engine settings
-gpu_memory_utilization: 0.4
+gpu_memory_utilization: 0.3
 max_model_len: 65536

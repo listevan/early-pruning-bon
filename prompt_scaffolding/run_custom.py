@@ -60,9 +60,11 @@ _original_initialize_solver = Runner._initialize_solver
 def _patched_initialize_solver(self, solver_config, default_prompt_template,
                                 default_api_client_args, last_chance_prompt):
     if solver_config.get("type") == "custom_model":
+        problem_answers = {p["problem_idx"]: p["answer"] for p in getattr(self, "problems", [])}
         return CustomModelSolver(
             solver_config, default_prompt_template,
             default_api_client_args, last_chance_prompt,
+            problem_answers=problem_answers
         )
     return _original_initialize_solver(
         self, solver_config, default_prompt_template,
