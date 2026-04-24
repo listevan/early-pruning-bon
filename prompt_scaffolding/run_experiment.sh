@@ -2,7 +2,7 @@
 
 export VLLM_LOGGING_LEVEL=ERROR
 
-MAX_PLAN_TOKENS=(500 750 1000 1250 1500)
+MAX_PLAN_TOKENS=(1000 2500 4000 6500 9000)
 PRUNE_RATIOS=(1 1.5 2 3 4)
 
 # Create a temporary file to hold the output

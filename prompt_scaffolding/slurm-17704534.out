@@ -1,0 +1,30 @@
+Job is starting on gpub017.delta.ncsa.illinois.edu
+Using uv from: /u/sl212/.local/bin/uv
+------------------------------------------------------
+Starting Sweep 1: max_plan_tokens (prune_ratio defaults to 1)
+Running: max_plan_tokens=2000
+2026-04-18 10:53:06.219084_bon_1_2_4_8_strategy_CompletionStrategy_plan_2000_prune_1.json
+Running: max_plan_tokens=3000
+2026-04-18 10:58:13.847613_bon_1_2_4_8_strategy_CompletionStrategy_plan_3000_prune_1.json
+Running: max_plan_tokens=4000
+2026-04-18 11:03:29.834926_bon_1_2_4_8_strategy_CompletionStrategy_plan_4000_prune_1.json
+Running: max_plan_tokens=5000
+2026-04-18 11:08:37.316318_bon_1_2_4_8_strategy_CompletionStrategy_plan_5000_prune_1.json
+Running: max_plan_tokens=6000
+2026-04-18 11:13:53.441178_bon_1_2_4_8_strategy_CompletionStrategy_plan_6000_prune_1.json
+Running: max_plan_tokens=7000
+2026-04-18 11:18:55.481376_bon_1_2_4_8_strategy_CompletionStrategy_plan_7000_prune_1.json
+------------------------------------------------------
+Starting Sweep 2: prune_ratio (max_plan_tokens defaults to 500)
+Running: prune_ratio=1
+2026-04-18 11:23:58.298534_bon_1_2_4_8_strategy_CompletionStrategy_plan_4000_prune_1.json
+Running: prune_ratio=1.5
+2026-04-18 11:35:53.221280_bon_1_2_4_8_strategy_CompletionStrategy_plan_4000_prune_1.5.json
+Running: prune_ratio=2
+2026-04-18 11:43:40.590110_bon_1_2_4_8_strategy_CompletionStrategy_plan_4000_prune_2.0.json
+Running: prune_ratio=3
+2026-04-18 11:49:53.750964_bon_1_2_4_8_strategy_CompletionStrategy_plan_4000_prune_3.0.json
+Running: prune_ratio=4
+2026-04-18 11:56:35.471440_bon_1_2_4_8_strategy_CompletionStrategy_plan_4000_prune_4.0.json
+------------------------------------------------------
+Both sweeps complete!

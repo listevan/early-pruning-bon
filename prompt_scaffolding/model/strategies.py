@@ -37,9 +37,9 @@ class Strategy(ABC):
         number_choices = max(1, len(generated_prompts[0]) // prune_ratio)
         
         # Conditionally format the 5th step
-        step_4_instruction = f"\n4. Select {number_choices} of the most diverse approaches." if  prune_ratio != 1 else ""
+        step_4_instruction = f"\n4. Select {number_choices} of the most diverse approaches." if  prune_ratio != 1 else "" # TODO: try adding correct (predictive) and/or diverse
 
-        prompts = [[
+        prompts = [[ # TODO mTry mentioning that they might not be correct, choose the one closest/most likely to be correct
             {
                 "role": "user", 
                 "content": f"""
@@ -219,16 +219,13 @@ class CompletionStrategy(Strategy):
         if previous_responses is None:
             sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_plan_tokens, seed=self.seed)
             print("Generating Completion Initial Response", file=sys.stderr)
-            outputs = self.llm.chat([
-                [
-                    {
-                        "role": "system", "content": f"Solve this problem step by step. Ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."
-                    }, 
-                    {
-                        "role": "user", "content": prompt
-                    }
-                ] 
-            for prompt in user_prompts], sampling_params=sampling_params) # , chat_template_kwargs={"enable_thinking": True})
+            outputs = self.llm.chat([[
+                {"role": "user", "content": (
+                    f"{prompt}\n\n"
+                    "First, write out your step-by-step thoughts on how to solve this in plain text without using any tags. "
+                    "Then, provide your final answer strictly inside <answer></answer> tags."
+                )}
+            ] for prompt in prompts], sampling_params=sampling_params)
 
             # import pdb; pdb.set_trace()
 

@@ -53,7 +53,7 @@ def parse_args():
     parser.add_argument(
         "--max_plan_tokens", 
         type=int, 
-        default=500, 
+        default=4000, 
         help="Number of tokens to generate before diversifying."
     )
     parser.add_argument(
@@ -88,7 +88,7 @@ llm = Model(model, seed=seed)
 strategy = CompletionStrategy(llm=llm.llm, seed=seed)
 # strategy = None
 
-previous_responses_fn = "2026-04-07 04:31:58.307539_bon_1_2_4_8_strategy_None.json"
+previous_responses_fn = "2026-04-18 04:51:52.952847_bon_1_2_4_8_strategy_None_plan_4000_prune_1.json"
 with open(previous_responses_fn, "r") as f:
     previous_responses = {best_of_n: data["responses"] for best_of_n, data in json.load(f).items()} # dict of best of n to "responses" (list of dicts)
 # previous_responses = None
@@ -118,10 +118,10 @@ def clean_math_string(line):
 def extract_answer(text):
     # Pattern looks for everything between <answer> and </answer>
     # re.DOTALL allows the dot (.) to match newlines if the answer is multi-line
-    match = re.search(r'<answer>(.*?)</answer>', text, re.DOTALL)
+    match = re.findall(r'<answer>(.*?)</answer>', text, re.DOTALL)
     
     if match:
-        return match.group(1).strip()
+        return match[-1].strip()
     
     # If no tags exist, return the original string
     return text
@@ -148,9 +148,7 @@ for best_of_n in best_of_ns:
         for j, candidate in enumerate(request_outputs):
             # remove <think></think> tags to get solution
             raw_text = candidate.text if hasattr(candidate, 'text') else candidate.get("text", "")
-            match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", raw_text, re.DOTALL)
-            candidate_text = match.group(1) if match else raw_text  
-            candidate_text = extract_answer(candidate_text)
+            candidate_text = extract_answer(raw_text)
 
             # print(f"===\nFor candidate, found best match : {}\n")
             
@@ -160,7 +158,7 @@ for best_of_n in best_of_ns:
                 score = 0
 
             # compare to see if it's the best solution
-            if score > best_score_for_task:
+            if score > best_score_for_task or best_response_text == "":
                 best_score_for_task = score
                 best_response_text = candidate_text
                 if bon_outputs["generated_diverse_prompts"]:
