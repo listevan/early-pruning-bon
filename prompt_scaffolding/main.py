@@ -40,7 +40,7 @@ def parse_args():
     parser.add_argument(
         "--temperature", 
         type=float, 
-        default=1.0, 
+        default=1.0,  
         help="Sampling temperature for the model (default: 1.0)"
     )
     parser.add_argument(
@@ -59,7 +59,7 @@ def parse_args():
     parser.add_argument(
         "--prune_ratio", 
         type=float, 
-        default=1, 
+        default=2, 
         help="Will prune down to bon // prune_ratio results (at 1, will let model decide)"
     )
 

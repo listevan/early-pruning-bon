@@ -30,76 +30,122 @@ class Strategy(ABC):
             return match.group(1).strip()
         return text.strip()
     
-    def _get_diverse_prompts(self, user_prompts, generated_prompts, prune_ratio=1, max_selection_tokens=16000): # TODO: 3/27/26: let max_selection_tokens be sufficiently enough
+    def _get_diverse_prompts(self, user_prompts, generated_prompts, prune_ratio=2, max_selection_tokens=16000, max_retries=3): # TODO: 3/27/26: let max_selection_tokens be sufficiently enough
         # create sampling params for model to determine if it's unique
         sampling_params = SamplingParams(temperature=0.7, top_p=0.8, top_k=20, max_tokens=max_selection_tokens, seed=self.seed)
 
-        number_choices = max(1, len(generated_prompts[0]) // prune_ratio)
+        number_choices = int(max(1, len(generated_prompts[0]) // prune_ratio))
         
-        # Conditionally format the 5th step
-        step_4_instruction = f"\n4. Select {number_choices} of the most diverse approaches." if  prune_ratio != 1 else "" # TODO: try adding correct (predictive) and/or diverse
+        # 1. Pre-build all the prompts
+        all_prompts = []
+        for user_prompt, generated_prompt in zip(user_prompts, generated_prompts):
+            # Create a list of original indices and shuffle them to combat positional bias
+            shuffled_indices = list(range(len(generated_prompt)))
+            random.shuffle(shuffled_indices)
+            
+            # Build the examples string in the randomized order, but keep the original ID tags
+            examples_str = "".join([
+                f"<example id='i{idx}'>\n{generated_prompt[idx].replace('<think>', '')}\n</example>\n" 
+                for idx in shuffled_indices
+            ])
 
-        prompts = [[ # TODO mTry mentioning that they might not be correct, choose the one closest/most likely to be correct
-            {
-                "role": "user", 
-                "content": f"""
-                    You are an expert evaluator. Do NOT solve the problem. Your task is to filter out incorrect approaches and identify the unique, valid approaches from a set of partial solutions.
+            prompt_content = f"""You are an expert evaluator. Do NOT solve the problem. Your task is to rank the provided partial solutions based on which approach is most likely to lead to the correct final answer.
 
-                    ### The Problem:
-                    {user_prompt}
+                ### The Problem:
+                {user_prompt}
 
-                    ### The Partial Solutions:
-                    {"".join([f"<example id='i{i}'>\n{request_generated_prompt.replace('<think>', '')}\n</example>\n" for i, request_generated_prompt in enumerate(generated_prompt)])}
+                ### The Partial Solutions:
+                {examples_str}
 
-                    ### Instructions:
-                    1. Analyze the underlying method or algorithm of each partial solution. Ignore superficial differences (like different variable names or slight phrasing changes).
-                    2. Compare each approach to the others to group them by core logic. 
-                    3. Prune solutions that might lead to the same outcome.{step_4_instruction}
+                ### Instructions:
+                1. Analyze the underlying logic of each partial solution.
+                2. Assess which approaches are most likely to be correct. Remember that these are incomplete snippets, so prioritize the overall trajectory over minor flaws.
+                3. Rank the partial solutions from highest likelihood of correctness to lowest.
 
-                    ### Output Format:
-                    First, provide your step-by-step comparison inside <reasoning> tags.
-                    Then, output ONLY the selected indices inside <results> tags, with each index on a new line. 
-
-                    Example Output:
-                    <reasoning>
-                    i0 uses a dynamic programming approach and is logically sound. i1 uses the exact same approach but renames the array, so it is a redundant duplicate. i2 introduces a recursive approach, but it contains a fundamental flaw in its base case, so it is incorrect and discarded. i3 proposes a valid, unique greedy approach.
-                    </reasoning>
-                    <results>
-                    i0
-                    i3
-                    </results>
+                Provide your brief evaluation, then output ONLY the ranked indices inside <results> tags, starting with the highest likelihood first, with each index on a new line.
                 """
-            }
-        ] for user_prompt, generated_prompt in zip(user_prompts, generated_prompts)]
-
-        # get diverse prompts
-        print("Generating Diverse Indexes", file=sys.stderr)
-        outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
-        print("Diverse prompt outputs:", [out.outputs[0].text for out in outputs], file=sys.stderr)
-        total_tokens = [len(request_output.outputs[0].token_ids) for request_output in outputs]
-
-        # return the prompts but as a list (questions) of lists (unique prompts)
-        indexes = []
-        reasonings = []
-        for output in outputs:
-            text = self._extract_content(output.outputs[0].text)
-            # print(text, file=sys.stderr)
             
-            # 1. Isolate the results block to avoid picking up reasoning indices
-            results_match = re.search(r'<results>(.*?)</results>', text, re.DOTALL)
-            reasoning_match = re.search(r'<reasoning>(.*?)</reasoning>', text, re.DOTALL)
+            all_prompts.append([{"role": "user", "content": prompt_content}])
 
-            results_text = results_match.group(1) if results_match else text # fallback to full text if tags fail
-            reasoning_text = reasoning_match.group(1) if reasoning_match else text
-            
-            # 2. Extract indices only from the results block
-            indexes_2_int = [int(t.replace("i", "")) for t in re.findall(r'i\d+', results_text)] 
-            indexes.append(sorted(list(set(indexes_2_int))))
-            reasonings.append(reasoning_text)
-
-        # print("Picked indicies: ", indexes)
+        N = len(user_prompts)
         
-        return indexes, reasonings, total_tokens
+        # Arrays to hold the final resolved data in the original order
+        final_indexes = [None] * N
+        final_reasonings = [""] * N
+        final_tokens = [0] * N
+
+        # Queue of indices that still need to be processed successfully
+        pending_indices = list(range(N))
+        attempts = 0
+
+        while pending_indices and attempts < max_retries:
+            print(f"Generating Diverse Indexes - Attempt {attempts + 1}/{max_retries}. Pending: {len(pending_indices)}", file=sys.stderr)
+            
+            # Extract only the prompts that need to be re-run
+            current_prompts = [all_prompts[i] for i in pending_indices]
+            
+            outputs = self.llm.chat(current_prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
+            
+            new_pending_indices = []
+
+            for j, output in enumerate(outputs):
+                original_i = pending_indices[j]  # Map batch index back to original index
+                text = self._extract_content(output.outputs[0].text)
+                
+                # Accumulate tokens across retries
+                final_tokens[original_i] += len(output.outputs[0].token_ids)
+                
+                # 1. Isolate the results block
+                results_match = re.findall(r'<results>(.*?)</results>', text, re.DOTALL)
+                results_text = results_match[-1].strip() if results_match else text 
+                
+                # 2. Extract indices and preserve LLM rank order (remove duplicates)
+                parsed_ints = [int(t.replace("i", "")) for t in re.findall(r'i\d+', results_text)] 
+                seen = set()
+                unique_ints = [x for x in parsed_ints if not (x in seen or seen.add(x))]
+
+                expected_length = len(generated_prompts[original_i])
+
+                # 3. Check if the LLM output length matches expected length
+                if len(unique_ints) == expected_length:
+                    # Success: Store it and don't add to new_pending_indices
+                    final_indexes[original_i] = unique_ints
+                    final_reasonings[original_i] = text
+                else:
+                    # Failure: Save current state just in case we hit max retries, then queue for retry
+                    final_indexes[original_i] = unique_ints
+                    final_reasonings[original_i] = text
+                    new_pending_indices.append(original_i)
+            
+            # Update the queue for the next loop iteration
+            pending_indices = new_pending_indices
+            attempts += 1
+
+        # Fallback: If any prompts hit max retries and STILL failed length check, randomly fill the missing parts
+        for i in pending_indices:
+            print(f"Index {i} failed length validation after {max_retries} attempts. Randomly padding.", file=sys.stderr)
+            expected_length = len(generated_prompts[i])
+            current_ints = final_indexes[i]
+            
+            # Keep only valid indices within bounds
+            valid_ints = [x for x in current_ints if x < expected_length]
+            
+            # Find what is missing and shuffle them
+            missing_ints = [x for x in range(expected_length) if x not in valid_ints]
+            random.shuffle(missing_ints)
+            
+            # Append missing random indices to the end of whatever the LLM successfully ranked
+            final_indexes[i] = valid_ints + missing_ints
+
+        # Apply final slicing and your original formatting logic
+        final_processed_indexes = []
+        for i in range(N):
+            # Take top 'number_choices'
+            selected_slice = final_indexes[i][:number_choices]
+            # Your original code sorts them here:
+            final_processed_indexes.append(selected_slice)
+
+        return final_processed_indexes, final_reasonings, final_tokens
     
     def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000, prune_ratio=1, previous_responses=None):
         # TODO 3/27/26: Get 8 full solutions(full solutions) --> and then truncate each of the full solutions so no need to rerun "generate_prompts"

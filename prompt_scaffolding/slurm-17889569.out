@@ -1,0 +1,28 @@
+Job is starting on gpub066.delta.ncsa.illinois.edu
+Using uv from: /u/sl212/.local/bin/uv
+------------------------------------------------------
+Starting Sweep 1: max_plan_tokens (prune_ratio defaults to 1)
+Running: max_plan_tokens=1000
+
+Running: max_plan_tokens=2500
+
+Running: max_plan_tokens=4000
+
+Running: max_plan_tokens=6500
+
+Running: max_plan_tokens=9000
+
+------------------------------------------------------
+Starting Sweep 2: prune_ratio (max_plan_tokens defaults to 500)
+Running: prune_ratio=1
+
+Running: prune_ratio=1.5
+
+Running: prune_ratio=2
+
+Running: prune_ratio=3
+
+Running: prune_ratio=4
+
+------------------------------------------------------
+Both sweeps complete!

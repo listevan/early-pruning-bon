@@ -29,7 +29,7 @@ def parse_results(results_fn):
     y_scores = []
     labels = []
     for bon in results.keys():
-        x.append(float(sum(results[bon]["total_tokens"])) / len(results[bon]["total_tokens"]))
+        x.append(sum(results[bon]["total_tokens"]))
         y.append(float(sum([score[2] for score in results[bon]["results"]])) / len(results[bon]["results"]))
         y_scores.append(sum([score[2] for score in results[bon]["results"]]))
         labels.append(bon)
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         plt.annotate(txt, (completion_x[i], completion_y[i]))
 
     plt.title('Score vs Token Usage for None and Completion Strategies')
-    plt.xlabel('Average Token Used')
+    plt.xlabel('Total Token Used')
     plt.ylabel('Average Score')
     plt.legend()
 
