@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument(
         "--num_examples", 
         type=int, 
-        default=30, 
+        default=100, 
         help="Number of examples to process (default: 30)"
     )
 
@@ -47,7 +47,7 @@ def parse_args():
         "--best_of_ns", 
         type=int, 
         nargs='+', 
-        default=[1, 2, 4, 8], 
+        default=[1, 2, 4, 8, 16], 
         help="List of integers for best-of-N sampling (default: 1 2 4 8). Provide space-separated values."
     )
     parser.add_argument(
@@ -88,7 +88,7 @@ llm = Model(model, seed=seed)
 strategy = CompletionStrategy(llm=llm.llm, seed=seed)
 # strategy = None
 
-previous_responses_fn = "2026-04-18 04:51:52.952847_bon_1_2_4_8_strategy_None_plan_4000_prune_1.json"
+previous_responses_fn = "2026-05-01 08:31:55.062600_bon_1_2_4_8_16_strategy_None_plan_4000_prune_2.json"
 with open(previous_responses_fn, "r") as f:
     previous_responses = {best_of_n: data["responses"] for best_of_n, data in json.load(f).items()} # dict of best of n to "responses" (list of dicts)
 # previous_responses = None
@@ -138,36 +138,13 @@ for best_of_n in best_of_ns:
     outputs[best_of_n]["results"] = []
     outputs[best_of_n]["questions"] = prompts
 
-    for i, request_outputs in enumerate(bon_outputs["responses"]):            
-        # get the best score from the selected candidate solutions
-        best_score_for_task = 0
-        best_response_text = ""
-        best_prompt = ""
+    for i, answer in enumerate(bon_outputs["Final Answers"]):
+        score = data.score_answer(answer=answer, entry=data[i])
+        if score != 1:
+            score = 0
+        outputs[best_of_n]["results"].append((answer, score))
 
-        # print(request_outputs)
-        for j, candidate in enumerate(request_outputs):
-            # remove <think></think> tags to get solution
-            raw_text = candidate.text if hasattr(candidate, 'text') else candidate.get("text", "")
-            candidate_text = extract_answer(raw_text)
-
-            # print(f"===\nFor candidate, found best match : {}\n")
-            
-            # score the answer
-            score = data.score_answer(answer=candidate_text, entry=data[i])
-            if score != 1:
-                score = 0
-
-            # compare to see if it's the best solution
-            if score > best_score_for_task or best_response_text == "":
-                best_score_for_task = score
-                best_response_text = candidate_text
-                if bon_outputs["generated_diverse_prompts"]:
-                    best_prompt = bon_outputs["generated_diverse_prompts"][i][j]
-        
-        # store best results
-        outputs[best_of_n]["results"].append((best_prompt, best_response_text, best_score_for_task))
-
-    print(f"best_of_{best_of_n} score is: {float(sum(result[2] for result in outputs[best_of_n]["results"])) / num_examples} and used average token count of: {float(sum(outputs[best_of_n]["total_tokens"])) / num_examples}", file=sys.stderr)
+    print(f"best_of_{best_of_n} score is: {float(sum(result[1] for result in outputs[best_of_n]["results"])) / num_examples} and used average token count of: {float(sum(outputs[best_of_n]["total_tokens"])) / num_examples}", file=sys.stderr)
 
 fname = f"{datetime.datetime.now()}_bon_{'_'.join(list(map(str, best_of_ns)))}_strategy_{strategy.name if strategy else "None"}_plan_{str(max_plan_tokens)}_prune_{str(prune_ratio)}.json"
 print(fname)
