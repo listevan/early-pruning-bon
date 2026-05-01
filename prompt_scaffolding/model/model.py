@@ -8,7 +8,7 @@ import sys
 answer_instruction = ""
 
 class Model:
-    def __init__(self, model_name: str, seed=42, gpu_memory_utilization=0.4, max_model_len=60000):
+    def __init__(self, model_name: str, seed=42, max_model_len=65536, gpu_memory_utilization=0.5):
         self.llm = LLM(model=model_name, tensor_parallel_size=1, max_model_len=max_model_len, gpu_memory_utilization=gpu_memory_utilization)
         self.seed = seed
 
@@ -52,15 +52,18 @@ class Model:
                         organized_outputs[best_of_n]["total_tokens"][j] += sum(max(len(response["token_ids"])-max_plan_tokens, 0) for response in organized_outputs[best_of_n]["responses"][-1])
 
             return organized_outputs
-        else:
+        else: # TODO: don't use system prompt just add to user prompt in none-strat generation, add text to make it think/reason step-by-step
             print("Strategy is none...", file=sys.stderr)
             # if not use user hyperparameters to generate results from prompt
-            sampling_params = SamplingParams(n=max(best_of_ns), temperature=temperature, top_p=0.95, max_tokens=max_tokens, seed=self.seed)
+            sampling_params = SamplingParams(n=max(best_of_ns), temperature=temperature, top_p=1, max_tokens=max_tokens, seed=self.seed)
             # Pass system prompt and answer_instructions when no strategy is used
             print("None Generating Solutions", file=sys.stderr)
             outputs = self.llm.chat([[
-                {"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."},
-                {"role": "user", "content": prompt + "\n" + answer_instruction}
+                {"role": "user", "content": (
+                    f"{prompt}\n\n"
+                    "First, write out your step-by-step thoughts on how to solve this in plain text without using any tags. "
+                    "Then, provide your final answer strictly inside <answer></answer> tags."
+                )}
             ] for prompt in prompts], sampling_params=sampling_params)
 
             # loop through questions to create a dictionary for each of the best_of_n results
