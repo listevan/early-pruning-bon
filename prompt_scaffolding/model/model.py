@@ -31,80 +31,126 @@ class Model:
         self.llm = LLM(model=model_name, tensor_parallel_size=1, max_model_len=60000)# max_model_len=65536)
         self.seed = seed
 
-    def select_solution(self, best_of_n, prompts, responses_list, max_tokens=16384):
+    def select_solution(self, best_of_n, prompts, responses_list, max_tokens=16384, max_retries=3):
         sampling_params = SamplingParams(temperature=0.7, top_p=0.8, top_k=20, max_tokens=max_tokens, seed=self.seed)
 
-        all_eval_messages = []
         all_candidates_text = [[
-                extract_answer(resp.text if hasattr(resp, 'text') else resp.get("text", "")) 
-                for resp in prompt_responses
-            ] for prompt_responses in responses_list]
+            extract_answer(resp.text if hasattr(resp, 'text') else resp.get("text", "")) 
+            for resp in prompt_responses
+        ] for prompt_responses in responses_list]
 
-        # 1. Format batched prompts efficiently without heavy nested comprehensions
+        # 1. Pre-build all the prompts
+        all_eval_messages = []
         for i, prompt in enumerate(prompts):
-            
-            # Extract the text for each candidate belonging to this prompt
             candidates_text = all_candidates_text[i]
             
             # Shuffle indices to prevent position bias
-            indices = list(range(candidates_text))
-            random.shuffle(indices)
+            shuffled_indices = list(range(len(candidates_text)))
+            random.shuffle(shuffled_indices)
             
-            # Build the examples string using the shuffled mappings
+            # Build the examples string using the 'iX' format for clearer parsing
             examples_str = "".join([
-                f"<example id='{idx}'>\n{candidates_text[idx]}\n</example>\n" 
-                for idx in indices
+                f"<example id='i{idx}'>\n{candidates_text[idx]}\n</example>\n" 
+                for idx in shuffled_indices
             ])
             
-            # Construct the message for this specific prompt
-            eval_content = f"""You are an expert evaluator. Do NOT solve the problem from scratch. Your task is to select the single most likely correct final solution from the provided options.
+            num_candidates = len(candidates_text)
+            valid_indices = ", ".join([f"i{j}" for j in range(num_candidates)])
+            
+            eval_content = f"""You are an expert evaluator. Your task is to select the single best solution from the provided options.
 
-                ### The Problem:
-                {prompt}
+            ### The Problem:
+            {prompt}
 
-                ### The Proposed Solutions:
-                {examples_str}
+            ### The Proposed Solutions:
+            {examples_str}
 
-                ### Instructions:
-                1. Analyze the underlying logic, methodology, and final answer of each proposed solution.
-                2. Assess which approach and conclusion is the most accurate. 
-                3. You MUST pick exactly ONE solution. Even if you believe all the provided options are flawed, incomplete, or entirely incorrect, you are strictly required to select the single "least wrong" or most reasonable solution among them.
+            ### Instructions:
+            1. Analyze the logic, methodology, and final answer of each proposed solution.
+            2. Assess which approach is the most accurate. 
+            3. You MUST pick exactly ONE solution using its exact ID.
+            4. You must use one of these specific indices: {valid_indices}.
 
-                Provide your brief evaluation, then output ONLY the single chosen index inside <results> tags."""
+            Output your response EXACTLY in this format:
+            <evaluation>
+            [Your brief evaluation here]
+            </evaluation>
+            <results>
+            iX
+            </results>"""
 
             all_eval_messages.append([{"role": "user", "content": eval_content}])
 
-        # 2. Execute a single, batched VLLM chat generation for all prompts at once
-        outputs = self.llm.chat(all_eval_messages, sampling_params=sampling_params)
-
-        # 3. Extract the chosen index and un-shuffle it to get the original candidate index
-        final_selections = []
-        total_tokens = []
-        for i, request_output in enumerate(outputs):
-            res_match = re.search(r'<results>\s*(.*?)\s*</results>', request_output.outputs[0].text)
-            total_tokens.append(len(request_output.outputs[0].token_ids))
-            
-            chosen_idx = random.randrange(best_of_n)
-            try:
-                parsed_idx = int(res_match.group(1).strip())
-                if 0<= parsed_idx < best_of_n:
-                    chosen_idx = parsed_idx
-            except (AttributeError, ValueError):
-                pass
-                
-            final_selections.append(all_candidates_text[i][chosen_idx])
+        N = len(prompts)
         
+        # Arrays to hold the final resolved data in the original order
+        final_selections = [None] * N
+        total_tokens = [0] * N
+        
+        # Queue of indices that still need to be processed successfully
+        pending_indices = list(range(N))
+        attempts = 0
+
+        # 2. Execute batched VLLM chat generation with retries
+        while pending_indices and attempts < max_retries:
+            print(f"Selecting Solutions - Attempt {attempts + 1}/{max_retries}. Pending: {len(pending_indices)}", file=sys.stderr)
+            
+            current_messages = [all_eval_messages[i] for i in pending_indices]
+            
+            outputs = self.llm.chat(current_messages, sampling_params=sampling_params)
+            
+            new_pending_indices = []
+
+            for j, request_output in enumerate(outputs):
+                original_i = pending_indices[j]
+                text = request_output.outputs[0].text
+                
+                # Accumulate tokens across retries
+                total_tokens[original_i] += len(request_output.outputs[0].token_ids)
+                
+                # Try to isolate the results block
+                res_match = re.search(r'<results>\s*(.*?)\s*</results>', text, re.DOTALL)
+                results_text = res_match.group(1).strip() if res_match else text
+                
+                # Extract the index, looking for 'iX' or just 'X'
+                idx_match = re.search(r'(?:i)?(\d+)', results_text)
+                
+                success = False
+                if idx_match:
+                    try:
+                        parsed_idx = int(idx_match.group(1))
+                        # Validate the parsed index is within bounds
+                        if 0 <= parsed_idx < len(all_candidates_text[original_i]):
+                            final_selections[original_i] = all_candidates_text[original_i][parsed_idx]
+                            success = True
+                    except (AttributeError, ValueError):
+                        pass
+                
+                if not success:
+                    # Failure: queue for retry
+                    new_pending_indices.append(original_i)
+            
+            pending_indices = new_pending_indices
+            attempts += 1
+
+        # 3. Handle any complete failures without resorting to random
+        for i in pending_indices:
+            print(f"Index {i} failed validation after {max_retries} attempts. Defaulting to first candidate.", file=sys.stderr)
+            final_selections[i] = all_candidates_text[i][0] # Deterministic fallback. Absolutely NO random choosing.
+
         return final_selections, total_tokens
 
     def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None):
         # see if user decided to use a strategy
         if strategy:
             organized_outputs = {}
-            ranked_indexes = None
-            reasonings = None
+            
 
             # loop through the best_of_ns to run diversification and generation for each n
             for i, best_of_n in enumerate(sorted(best_of_ns, reverse=True)):
+                ranked_indexes = None # can move outside if you want the ranking to be reused, but then token usage may be incorrect
+                reasonings = None
+
                 filtered_ranked_indexes = None
                 if ranked_indexes is not None:
                     filtered_ranked_indexes = [[idx for idx in prompt_ranks if idx < best_of_n] for prompt_ranks in ranked_indexes]
@@ -116,7 +162,7 @@ class Model:
                     bon_previous_responses = previous_responses[str(best_of_n)]
                 organized_outputs[best_of_n] = strategy.generate_prompts(prompts, best_of_n, temperature, max_plan_tokens=max_plan_tokens, prune_ratio=prune_ratio, previous_responses=bon_previous_responses, ranked_indexes=filtered_ranked_indexes, reasonings=reasonings)
                 if ranked_indexes is None:
-                    ranked_indexes = organized_outputs[best_of_n]["indexes"]
+                    ranked_indexes = organized_outputs[best_of_n]["ranked_indexes"]
                     reasonings = organized_outputs[best_of_n]["reasonings"]
                 
                 new_request_prompts = organized_outputs[best_of_n]["generated_diverse_prompts"]

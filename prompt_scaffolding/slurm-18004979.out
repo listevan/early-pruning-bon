@@ -1,0 +1,21 @@
+Job is starting on gpub026.delta.ncsa.illinois.edu
+Using uv from: /u/sl212/.local/bin/uv
+------------------------------------------------------
+Starting Nested Sweep: max_plan_tokens and prune_ratio
+------------------------------------------------------
+Running: max_plan_tokens=1000 | prune_ratio=1.5
+2026-05-02 03:08:15.359833_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_1000_prune_1.5.json
+------------------------------------------------------
+Running: max_plan_tokens=1000 | prune_ratio=2
+2026-05-02 03:28:28.280327_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_1000_prune_2.0.json
+------------------------------------------------------
+Running: max_plan_tokens=1000 | prune_ratio=3
+2026-05-02 03:48:24.370846_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_1000_prune_3.0.json
+------------------------------------------------------
+Running: max_plan_tokens=1000 | prune_ratio=4
+2026-05-02 04:08:57.261454_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_1000_prune_4.0.json
+------------------------------------------------------
+Running: max_plan_tokens=2500 | prune_ratio=1.5
+2026-05-02 04:28:59.049187_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_2500_prune_1.5.json
+------------------------------------------------------
+Running: max_plan_tokens=2500 | prune_ratio=2

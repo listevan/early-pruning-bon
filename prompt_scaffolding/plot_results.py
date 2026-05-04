@@ -8,7 +8,7 @@ def parse_args():
     parser.add_argument(
         "--none_fn", 
         type=str, 
-        default="2026-05-01 08:31:55.062600_bon_1_2_4_8_16_strategy_None_plan_4000_prune_2.json", 
+        default="2026-05-04 05:24:58.543955_bon_1_2_4_8_16_strategy_None_plan_4000_prune_2.json", 
         help="Filename of results for no strategy completion"
     )
     parser.add_argument(
@@ -28,10 +28,12 @@ def parse_results(results_fn):
     y = []
     y_scores = []
     labels = []
-    for bon in results.keys():
+    
+    # Sort the dictionary keys here
+    for bon in sorted(results.keys()):
         x.append(sum(results[bon]["total_tokens"]))
-        y.append(float(sum([score[2] for score in results[bon]["results"]])) / len(results[bon]["results"]))
-        y_scores.append(sum([score[2] for score in results[bon]["results"]]))
+        y.append(float(sum([score[1] for score in results[bon]["results"]])) / len(results[bon]["results"]))
+        y_scores.append(sum([score[1] for score in results[bon]["results"]]))
         labels.append(bon)
     
     return x, y, y_scores, labels

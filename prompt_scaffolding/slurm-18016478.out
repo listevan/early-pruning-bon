@@ -1,0 +1,66 @@
+Job is starting on gpub011.delta.ncsa.illinois.edu
+Using uv from: /u/sl212/.local/bin/uv
+------------------------------------------------------
+Starting Nested Sweep: max_plan_tokens and prune_ratio
+------------------------------------------------------
+Running: max_plan_tokens=1000 | prune_ratio=1.5
+2026-05-03 03:39:25.939511_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_1000_prune_1.5.json
+------------------------------------------------------
+Running: max_plan_tokens=1000 | prune_ratio=2
+2026-05-03 04:05:45.524932_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_1000_prune_2.0.json
+------------------------------------------------------
+Running: max_plan_tokens=1000 | prune_ratio=3
+2026-05-03 04:31:13.673751_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_1000_prune_3.0.json
+------------------------------------------------------
+Running: max_plan_tokens=1000 | prune_ratio=4
+2026-05-03 04:56:35.955642_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_1000_prune_4.0.json
+------------------------------------------------------
+Running: max_plan_tokens=2500 | prune_ratio=1.5
+2026-05-03 05:26:20.928326_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_2500_prune_1.5.json
+------------------------------------------------------
+Running: max_plan_tokens=2500 | prune_ratio=2
+2026-05-03 05:51:38.440774_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_2500_prune_2.0.json
+------------------------------------------------------
+Running: max_plan_tokens=2500 | prune_ratio=3
+2026-05-03 06:16:58.460986_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_2500_prune_3.0.json
+------------------------------------------------------
+Running: max_plan_tokens=2500 | prune_ratio=4
+2026-05-03 06:42:51.376147_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_2500_prune_4.0.json
+------------------------------------------------------
+Running: max_plan_tokens=4000 | prune_ratio=1.5
+2026-05-03 07:07:57.511952_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_4000_prune_1.5.json
+------------------------------------------------------
+Running: max_plan_tokens=4000 | prune_ratio=2
+2026-05-03 07:34:23.456715_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_4000_prune_2.0.json
+------------------------------------------------------
+Running: max_plan_tokens=4000 | prune_ratio=3
+2026-05-03 08:00:17.260067_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_4000_prune_3.0.json
+------------------------------------------------------
+Running: max_plan_tokens=4000 | prune_ratio=4
+2026-05-03 08:26:48.396581_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_4000_prune_4.0.json
+------------------------------------------------------
+Running: max_plan_tokens=6500 | prune_ratio=1.5
+2026-05-03 08:56:38.619573_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_6500_prune_1.5.json
+------------------------------------------------------
+Running: max_plan_tokens=6500 | prune_ratio=2
+2026-05-03 09:23:24.534811_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_6500_prune_2.0.json
+------------------------------------------------------
+Running: max_plan_tokens=6500 | prune_ratio=3
+2026-05-03 09:48:30.923658_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_6500_prune_3.0.json
+------------------------------------------------------
+Running: max_plan_tokens=6500 | prune_ratio=4
+2026-05-03 10:14:22.253838_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_6500_prune_4.0.json
+------------------------------------------------------
+Running: max_plan_tokens=9000 | prune_ratio=1.5
+2026-05-03 10:40:54.666613_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_9000_prune_1.5.json
+------------------------------------------------------
+Running: max_plan_tokens=9000 | prune_ratio=2
+2026-05-03 11:07:21.676193_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_9000_prune_2.0.json
+------------------------------------------------------
+Running: max_plan_tokens=9000 | prune_ratio=3
+2026-05-03 11:32:44.157957_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_9000_prune_3.0.json
+------------------------------------------------------
+Running: max_plan_tokens=9000 | prune_ratio=4
+2026-05-03 11:58:25.901369_bon_1_2_4_8_16_strategy_CompletionStrategy_plan_9000_prune_4.0.json
+------------------------------------------------------
+Nested sweep complete!

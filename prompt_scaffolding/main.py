@@ -88,7 +88,7 @@ llm = Model(model, seed=seed)
 strategy = CompletionStrategy(llm=llm.llm, seed=seed)
 # strategy = None
 
-previous_responses_fn = "2026-05-01 08:31:55.062600_bon_1_2_4_8_16_strategy_None_plan_4000_prune_2.json"
+previous_responses_fn = "2026-05-04 05:24:58.543955_bon_1_2_4_8_16_strategy_None_plan_4000_prune_2.json"
 with open(previous_responses_fn, "r") as f:
     previous_responses = {best_of_n: data["responses"] for best_of_n, data in json.load(f).items()} # dict of best of n to "responses" (list of dicts)
 # previous_responses = None

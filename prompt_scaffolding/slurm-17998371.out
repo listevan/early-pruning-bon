@@ -1,6 +1,0 @@
-Job is starting on gpub099.delta.ncsa.illinois.edu
-Using uv from: /u/sl212/.local/bin/uv
-------------------------------------------------------
-Starting Nested Sweep: max_plan_tokens and prune_ratio
-------------------------------------------------------
-Running: max_plan_tokens=1000 | prune_ratio=1.5

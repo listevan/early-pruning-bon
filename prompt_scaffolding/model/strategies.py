@@ -47,22 +47,31 @@ class Strategy(ABC):
                 for idx in shuffled_indices
             ])
 
-            prompt_content = f"""You are an expert evaluator. Do NOT solve the problem. Your task is to rank the provided partial solutions based on which approach is most likely to lead to the correct final answer.
+            num_candidates = len(generated_prompt) 
+            valid_indices = ", ".join([f"i{j}" for j in range(num_candidates)])
+            prompt_content = f"""Rank the {num_candidates} partial solutions based on how likely they are to lead to the correct answer.
 
-                ### The Problem:
-                {user_prompt}
+            ### Problem:
+            {user_prompt}
 
-                ### The Partial Solutions:
-                {examples_str}
+            ### Partial Solutions:
+            {examples_str}
 
-                ### Instructions:
-                1. Analyze the underlying logic of each partial solution.
-                2. Assess which approaches are most likely to be correct. Remember that these are incomplete snippets, so prioritize the overall trajectory over minor flaws.
-                3. Rank the partial solutions from highest likelihood of correctness to lowest.
+            ### Instructions:
+            1. Briefly evaluate the best approaches.
+            2. Rank ALL {num_candidates} solutions from best to worst.
+            3. You must use exactly these indices: {valid_indices}. No duplicates and no omissions.
 
-                Provide your brief evaluation, then output ONLY the ranked indices inside <results> tags, starting with the highest likelihood first, with each index on a new line.
-                """
-            
+            Output your response EXACTLY in this format:
+            <evaluation>
+            [Your brief evaluation here]
+            </evaluation>
+            <results>
+            iX
+            iY
+            ...
+            </results>"""
+
             all_prompts.append([{"role": "user", "content": prompt_content}])
 
         N = len(user_prompts)
@@ -110,7 +119,7 @@ class Strategy(ABC):
                     final_reasonings[original_i] = text
                 else:
                     # Failure: Save current state just in case we hit max retries, then queue for retry
-                    print(text, file=sys.stderr)
+                    # print(text, file=sys.stderr)
                     final_indexes[original_i] = unique_ints
                     final_reasonings[original_i] = text
                     new_pending_indices.append(original_i)
@@ -286,6 +295,7 @@ class CompletionStrategy(Strategy):
             ranked_indexes, reasonings, diversity_tokens = self.rank_prompts(user_prompts, new_prompts, max_selection_tokens)
 
             total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
+            print(f"selection takes {sum(diversity_tokens) / len(diversity_tokens)} tokens", file=sys.stderr)
 
         number_choices = int(max(1, best_of_n // prune_ratio))
         final_processed_indexes = []
@@ -297,5 +307,5 @@ class CompletionStrategy(Strategy):
 
         generated_diverse_prompts = [[new_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(new_prompts[i])] for i, diverse_indexes in enumerate(final_processed_indexes)]       
         
-        return {"generated_prompts": new_prompts, "indexes": ranked_indexes, "reasonings": reasonings, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
+        return {"generated_prompts": new_prompts, "ranked_indexes": ranked_indexes, "indexes": final_processed_indexes, "reasonings": reasonings, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
         
