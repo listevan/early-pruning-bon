@@ -22,5 +22,5 @@ prune_ratio: 1
 strategy: CompletionStrategy
 
 # vLLM engine settings
-gpu_memory_utilization: 0.3
+gpu_memory_utilization: 0.4
 max_model_len: 65536

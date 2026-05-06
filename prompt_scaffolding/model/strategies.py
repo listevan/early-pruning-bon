@@ -23,11 +23,9 @@ class Strategy(ABC):
             return match.group(1).strip()
         return text.strip()
     
-    def _get_diverse_prompts(self, user_prompts, generated_prompts, prune_ratio=2, max_selection_tokens=16000, max_retries=3): # TODO: 3/27/26: let max_selection_tokens be sufficiently enough
+    def rank_prompts(self, user_prompts, generated_prompts, max_selection_tokens=16000, max_retries=3): # TODO: 3/27/26: let max_selection_tokens be sufficiently enough
         # create sampling params for model to determine if it's unique
         sampling_params = SamplingParams(temperature=0.7, top_p=0.8, top_k=20, max_tokens=max_selection_tokens, seed=self.seed)
-
-        number_choices = int(max(1, len(generated_prompts[0]) // prune_ratio))
         
         # 1. Pre-build all the prompts
         all_prompts = []
@@ -42,22 +40,31 @@ class Strategy(ABC):
                 for idx in shuffled_indices
             ])
 
-            prompt_content = f"""You are an expert evaluator. Do NOT solve the problem. Your task is to rank the provided partial solutions based on which approach is most likely to lead to the correct final answer.
+            num_candidates = len(generated_prompt) 
+            valid_indices = ", ".join([f"i{j}" for j in range(num_candidates)])
+            prompt_content = f"""Rank the {num_candidates} partial solutions based on how likely they are to lead to the correct answer.
 
-                ### The Problem:
-                {user_prompt}
+            ### Problem:
+            {user_prompt}
 
-                ### The Partial Solutions:
-                {examples_str}
+            ### Partial Solutions:
+            {examples_str}
 
-                ### Instructions:
-                1. Analyze the underlying logic of each partial solution.
-                2. Assess which approaches are most likely to be correct. Remember that these are incomplete snippets, so prioritize the overall trajectory over minor flaws.
-                3. Rank the partial solutions from highest likelihood of correctness to lowest.
+            ### Instructions:
+            1. Briefly evaluate the best approaches.
+            2. Rank ALL {num_candidates} solutions from best to worst.
+            3. You must use exactly these indices: {valid_indices}. No duplicates and no omissions.
 
-                Provide your brief evaluation, then output ONLY the ranked indices inside <results> tags, starting with the highest likelihood first, with each index on a new line.
-                """
-            
+            Output your response EXACTLY in this format:
+            <evaluation>
+            [Your brief evaluation here]
+            </evaluation>
+            <results>
+            iX
+            iY
+            ...
+            </results>"""
+
             all_prompts.append([{"role": "user", "content": prompt_content}])
 
         N = len(user_prompts)
@@ -93,11 +100,10 @@ class Strategy(ABC):
                 results_text = results_match[-1].strip() if results_match else text 
                 
                 # 2. Extract indices and preserve LLM rank order (remove duplicates)
-                parsed_ints = [int(t.replace("i", "")) for t in re.findall(r'i\d+', results_text)] 
-                seen = set()
-                unique_ints = [x for x in parsed_ints if not (x in seen or seen.add(x))]
-
                 expected_length = len(generated_prompts[original_i])
+                parsed_ints = [int(match) for match in re.findall(r'(?:i)?(\d+)', results_text)] 
+                seen = set()
+                unique_ints = [x for x in parsed_ints if not (x in seen or seen.add(x)) and x < expected_length]
 
                 # 3. Check if the LLM output length matches expected length
                 if len(unique_ints) == expected_length:
@@ -106,6 +112,7 @@ class Strategy(ABC):
                     final_reasonings[original_i] = text
                 else:
                     # Failure: Save current state just in case we hit max retries, then queue for retry
+                    # print(text, file=sys.stderr)
                     final_indexes[original_i] = unique_ints
                     final_reasonings[original_i] = text
                     new_pending_indices.append(original_i)
@@ -118,7 +125,7 @@ class Strategy(ABC):
         for i in pending_indices:
             print(f"Index {i} failed length validation after {max_retries} attempts. Randomly padding.", file=sys.stderr)
             expected_length = len(generated_prompts[i])
-            current_ints = final_indexes[i]
+            current_ints = final_indexes[i] or []
             
             # Keep only valid indices within bounds
             valid_ints = [x for x in current_ints if x < expected_length]
@@ -130,17 +137,9 @@ class Strategy(ABC):
             # Append missing random indices to the end of whatever the LLM successfully ranked
             final_indexes[i] = valid_ints + missing_ints
 
-        # Apply final slicing and your original formatting logic
-        final_processed_indexes = []
-        for i in range(N):
-            # Take top 'number_choices'
-            selected_slice = final_indexes[i][:number_choices]
-            # Your original code sorts them here:
-            final_processed_indexes.append(selected_slice)
-
-        return final_processed_indexes, final_reasonings, final_tokens
+        return final_indexes, final_reasonings, final_tokens
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000, prune_ratio=1, previous_responses=None):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000, prune_ratio=1, previous_responses=None, ranked_indexes=None, reasonings=None):
         # TODO 3/27/26: Get 8 full solutions(full solutions) --> and then truncate each of the full solutions so no need to rerun "generate_prompts"
             # TODO: to do the above, tokenize full solutions --> then truncate to first 500 tokens
         total_tokens = []
@@ -186,15 +185,22 @@ class Strategy(ABC):
             # and separate with a new line
             generated_prompts.append(request_prompts) 
         # print(f"original plans are: {generated_prompts[random_question]}")
+        
+        ranked_indexes, reasonings, diversity_tokens = self.rank_prompts(user_prompts, generated_prompts, max_selection_tokens)
 
-        indexes, reasonings, diversity_tokens = self._get_diverse_prompts(user_prompts, generated_prompts, prune_ratio, max_selection_tokens)
         total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
 
-        generated_diverse_prompts = [[generated_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(generated_prompts[i])] for i, diverse_indexes in enumerate(indexes)]
-        # print(f"diverse plans are: {generated_diverse_prompts[random_question]}")
-        # print(f"------------------------------------------------------------------------------------------------------------")
+        number_choices = int(max(1, best_of_n // prune_ratio))
+        final_processed_indexes = []
+        for i in range(len(user_prompts)):
+            # Take top 'number_choices'
+            selected_slice = ranked_indexes[i][:number_choices]
+            # Your original code sorts them here:
+            final_processed_indexes.append(selected_slice)
+
+        generated_diverse_prompts = [[generated_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(generated_prompts[i])] for i, diverse_indexes in enumerate(final_processed_indexes)]
         
-        return {"generated_prompts": generated_prompts, "indexes": indexes, "reasonings": reasonings, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
+        return {"generated_prompts": generated_prompts, "indexes": ranked_indexes, "reasonings": reasonings, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
 
 class HypothesisStrategy(Strategy):
     def __init__(self, llm, seed=42):
@@ -225,8 +231,7 @@ class UserStrategy(Strategy):
     def __init__(self, llm, seed=42):
         super().__init__(llm, "", "UserStrategy", seed)
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000, previous_responses=None):
-        # need to fill in with user created prompts
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=500, prune_ratio=1, previous_responses=None, ranked_indexes=None, reasonings=None):        # need to fill in with user created prompts
         tokenizer = self.llm.get_tokenizer()
         new_prompts = [
             [
@@ -241,13 +246,13 @@ class UserStrategy(Strategy):
             ]
         ] * len(user_prompts)
 
-        return {"generated_prompts": new_prompts, "indexes": range(len(new_prompts)), "reasonings": [], "generated_diverse_prompts": new_prompts, "total_tokens": [0] * len(user_prompts)}
+        return {"generated_prompts": new_prompts, "indexes": [range(len(new_prompts[0]))]*len(user_prompts), "reasonings": [], "generated_diverse_prompts": new_prompts, "total_tokens": [0] * len(user_prompts)}
 
 class CompletionStrategy(Strategy):
     def __init__(self, llm, seed=42):
         super().__init__(llm, "", "CompletionStrategy", seed)
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=500, prune_ratio=1, previous_responses=None):
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=500, prune_ratio=1, previous_responses=None, ranked_indexes=None, reasonings=None):
         # TODO: test with different mumber of max_plan_tokens (first few 100 is even better)
         # TODO: 3/27/26: Vary max_plan_tokens and make sure essence of solution is within these 500 tokens(so make sure that 500 is enough) --> treat as hyperparameter and just test around(no good way to test it)
         # TODO: 3/27/26: Thinking models tend to do bad with <think></think> because training doesn't condition on it
@@ -279,10 +284,21 @@ class CompletionStrategy(Strategy):
                 new_prompts.append([tokenizer.decode(response["token_ids"][:max_plan_tokens]) for response in request_output])
                 total_tokens.append(sum([min(max_plan_tokens, len(response["token_ids"])) for response in request_output]))
         
-        indexes, reasonings, diversity_tokens = self._get_diverse_prompts(user_prompts, new_prompts, prune_ratio, max_selection_tokens)
-        total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
+        if ranked_indexes is None:
+            ranked_indexes, reasonings, diversity_tokens = self.rank_prompts(user_prompts, new_prompts, max_selection_tokens)
 
-        generated_diverse_prompts = [[new_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(new_prompts[i])] for i, diverse_indexes in enumerate(indexes)]       
+            total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
+            print(f"selection takes {sum(diversity_tokens) / len(diversity_tokens)} tokens", file=sys.stderr)
+
+        number_choices = int(max(1, best_of_n // prune_ratio))
+        final_processed_indexes = []
+        for i in range(len(user_prompts)):
+            # Take top 'number_choices'
+            selected_slice = ranked_indexes[i][:number_choices]
+            # Your original code sorts them here:
+            final_processed_indexes.append(selected_slice)
+
+        generated_diverse_prompts = [[new_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(new_prompts[i])] for i, diverse_indexes in enumerate(final_processed_indexes)]       
         
-        return {"generated_prompts": new_prompts, "indexes": indexes, "reasonings": reasonings, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
+        return {"generated_prompts": new_prompts, "ranked_indexes": ranked_indexes, "indexes": final_processed_indexes, "reasonings": reasonings, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
         
