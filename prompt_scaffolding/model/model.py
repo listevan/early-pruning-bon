@@ -127,6 +127,7 @@ class Model:
             attempts += 1
 
         # 3. Handle any complete failures without resorting to random
+        print("Final indices chosen:", pending_indices)
         for i in pending_indices:
             print(f"Index {i} failed validation after {max_retries} attempts. Defaulting to first candidate.", file=sys.stderr)
             final_selections[i] = all_candidates_text[i][0] # Deterministic fallback. Absolutely NO random choosing.

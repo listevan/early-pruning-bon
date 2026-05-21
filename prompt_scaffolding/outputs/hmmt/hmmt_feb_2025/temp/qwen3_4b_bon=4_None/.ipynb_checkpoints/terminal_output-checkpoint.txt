@@ -1,0 +1,441 @@
+ython run_custom.py --comp hmmt/hmmt_feb_2025 --model qwen3_4b_bon --redo-all
+2026-04-19 18:19:42.602 | WARNING  | matharena.tools.paper_search:<module>:22 - Semantic Scholar API key (S2_API_KEY) not set. You may hit rate limits.
+2026-04-19 18:19:42.613 | INFO     | __main__:main:155 - Competition      : hmmt/hmmt_feb_2025
+2026-04-19 18:19:42.613 | INFO     | __main__:main:156 - Solver config    : qwen3_4b_bon
+2026-04-19 18:19:42.613 | INFO     | __main__:main:157 - Runs per problem : 1
+2026-04-19 18:19:42.613 | INFO     | __main__:main:158 - Problems         : all
+2026-04-19 18:19:42.613 | INFO     | __main__:main:159 - Comp configs     : /home/stevex2/CS497/matharena/configs/competitions
+2026-04-19 18:19:42.613 | INFO     | __main__:main:160 - Model configs    : /home/stevex2/CS497/prompt_scaffolding/configs/models
+2026-04-19 18:19:42.613 | INFO     | __main__:main:161 - Output dir       : outputs
+Problem ids are: None
+2026-04-19 18:19:43.298 | INFO     | matharena.runner:__init__:45 - Loaded 30 problems for competition hmmt/hmmt_feb_2025
+2026-04-19 18:19:43.302 | INFO     | matharena.runner:prepare_run:293 - Initializing the solver for qwen3_4b_bon
+INFO 04-19 18:19:43 [utils.py:233] non-default args: {'max_model_len': 65536, 'gpu_memory_utilization': 0.4, 'disable_log_stats': True, 'model': 'Qwen/Qwen3-4B-Instruct-2507'}
+INFO 04-19 18:19:43 [model.py:549] Resolved architecture: Qwen3ForCausalLM
+INFO 04-19 18:19:43 [model.py:1678] Using max model len 65536
+INFO 04-19 18:19:43 [scheduler.py:238] Chunked prefill is enabled with max_num_batched_tokens=16384.
+INFO 04-19 18:19:43 [vllm.py:790] Asynchronous scheduling is enabled.
+(EngineCore pid=3417) INFO 04-19 18:19:46 [core.py:105] Initializing a V1 LLM engine (v0.19.0) with config: model='Qwen/Qwen3-4B-Instruct-2507', speculative_config=None, tokenizer='Qwen/Qwen3-4B-Instruct-2507', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=65536, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, data_parallel_size=1, decode_context_parallel_size=1, dcp_comm_backend=ag_rs, disable_custom_all_reduce=False, quantization=None, enforce_eager=False, enable_return_routed_experts=False, kv_cache_dtype=auto, device_config=cuda, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser='', reasoning_parser_plugin='', enable_in_reasoning=False), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None, kv_cache_metrics=False, kv_cache_metrics_sample=0.01, cudagraph_metrics=False, enable_layerwise_nvtx_tracing=False, enable_mfu_metrics=False, enable_mm_processor_stats=False, enable_logging_iteration_details=False), seed=0, served_model_name=Qwen/Qwen3-4B-Instruct-2507, enable_prefix_caching=True, enable_chunked_prefill=True, pooler_config=None, compilation_config={'mode': <CompilationMode.VLLM_COMPILE: 3>, 'debug_dump_path': None, 'cache_dir': '', 'compile_cache_save_format': 'binary', 'backend': 'inductor', 'custom_ops': ['none'], 'splitting_ops': ['vllm::unified_attention', 'vllm::unified_attention_with_output', 'vllm::unified_mla_attention', 'vllm::unified_mla_attention_with_output', 'vllm::mamba_mixer2', 'vllm::mamba_mixer', 'vllm::short_conv', 'vllm::linear_attention', 'vllm::plamo2_mamba_mixer', 'vllm::gdn_attention_core', 'vllm::olmo_hybrid_gdn_full_forward', 'vllm::kda_attention', 'vllm::sparse_attn_indexer', 'vllm::rocm_aiter_sparse_attn_indexer', 'vllm::unified_kv_cache_update', 'vllm::unified_mla_kv_cache_update'], 'compile_mm_encoder': False, 'cudagraph_mm_encoder': False, 'encoder_cudagraph_token_budgets': [], 'encoder_cudagraph_max_images_per_batch': 0, 'compile_sizes': [], 'compile_ranges_endpoints': [16384], 'inductor_compile_config': {'enable_auto_functionalized_v2': False, 'size_asserts': False, 'alignment_asserts': False, 'scalar_asserts': False, 'combo_kernels': True, 'benchmark_combo_kernel': True}, 'inductor_passes': {}, 'cudagraph_mode': <CUDAGraphMode.FULL_AND_PIECEWISE: (2, 1)>, 'cudagraph_num_of_warmups': 1, 'cudagraph_capture_sizes': [1, 2, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240, 248, 256, 272, 288, 304, 320, 336, 352, 368, 384, 400, 416, 432, 448, 464, 480, 496, 512], 'cudagraph_copy_inputs': False, 'cudagraph_specialize_lora': True, 'use_inductor_graph_partition': False, 'pass_config': {'fuse_norm_quant': False, 'fuse_act_quant': False, 'fuse_attn_quant': False, 'enable_sp': False, 'fuse_gemm_comms': False, 'fuse_allreduce_rms': False}, 'max_cudagraph_capture_size': 512, 'dynamic_shapes_config': {'type': <DynamicShapesType.BACKED: 'backed'>, 'evaluate_guards': False, 'assume_32_bit_indexing': False}, 'local_cache_dir': None, 'fast_moe_cold_start': True, 'static_all_moe_layers': []}
+(EngineCore pid=3417) INFO 04-19 18:19:48 [parallel_state.py:1400] world_size=1 rank=0 local_rank=0 distributed_init_method=tcp://10.42.45.158:49003 backend=nccl
+(EngineCore pid=3417) INFO 04-19 18:19:48 [parallel_state.py:1716] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, PCP rank 0, TP rank 0, EP rank N/A, EPLB rank N/A
+(EngineCore pid=3417) INFO 04-19 18:19:49 [gpu_model_runner.py:4735] Starting to load model Qwen/Qwen3-4B-Instruct-2507...
+(EngineCore pid=3417) INFO 04-19 18:19:51 [cuda.py:334] Using FLASH_ATTN attention backend out of potential backends: ['FLASH_ATTN', 'FLASHINFER', 'TRITON_ATTN', 'FLEX_ATTENTION'].
+(EngineCore pid=3417) INFO 04-19 18:19:51 [flash_attn.py:596] Using FlashAttention version 3
+(EngineCore pid=3417) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+(EngineCore pid=3417) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+(EngineCore pid=3417) INFO 04-19 18:19:51 [weight_utils.py:848] Prefetching checkpoint files into page cache started (in background)
+Loading safetensors checkpoint shards:   0% Completed | 0/3 [00:00<?, ?it/s]
+(EngineCore pid=3417) INFO 04-19 18:19:51 [weight_utils.py:825] Prefetching checkpoint files: 10% (1/3)
+(EngineCore pid=3417) INFO 04-19 18:19:52 [weight_utils.py:825] Prefetching checkpoint files: 20% (2/3)
+(EngineCore pid=3417) INFO 04-19 18:19:52 [weight_utils.py:825] Prefetching checkpoint files: 30% (3/3)
+(EngineCore pid=3417) INFO 04-19 18:19:52 [weight_utils.py:843] Prefetching checkpoint files into page cache finished in 0.54s
+Loading safetensors checkpoint shards:  33% Completed | 1/3 [00:00<00:01,  1.52it/s]
+Loading safetensors checkpoint shards:  67% Completed | 2/3 [00:01<00:00,  1.22it/s]
+Loading safetensors checkpoint shards: 100% Completed | 3/3 [00:01<00:00,  1.71it/s]
+Loading safetensors checkpoint shards: 100% Completed | 3/3 [00:01<00:00,  1.58it/s]
+(EngineCore pid=3417) 
+(EngineCore pid=3417) INFO 04-19 18:19:53 [default_loader.py:384] Loading weights took 1.91 seconds
+(EngineCore pid=3417) INFO 04-19 18:19:54 [gpu_model_runner.py:4820] Model loading took 7.61 GiB memory and 3.892006 seconds
+(EngineCore pid=3417) INFO 04-19 18:20:02 [backends.py:1051] Using cache directory: /home/stevex2/.cache/vllm/torch_compile_cache/b9560917a6/rank_0_0/backbone for vLLM's torch.compile
+(EngineCore pid=3417) INFO 04-19 18:20:02 [backends.py:1111] Dynamo bytecode transform time: 7.28 s
+(EngineCore pid=3417) INFO 04-19 18:20:05 [backends.py:285] Directly load the compiled graph(s) for compile range (1, 16384) from the cache, took 2.614 s
+(EngineCore pid=3417) INFO 04-19 18:20:05 [decorators.py:303] Directly load AOT compilation from path /home/stevex2/.cache/vllm/torch_compile_cache/torch_aot_compile/3253b440e75eda45ecc0a4e08ee5794f1c4fbc85dfd94f92229379e9eccbeaa9/rank_0_0/model
+(EngineCore pid=3417) INFO 04-19 18:20:05 [monitor.py:48] torch.compile took 10.56 s in total
+(EngineCore pid=3417) INFO 04-19 18:20:05 [monitor.py:76] Initial profiling/warmup run took 0.08 s
+(EngineCore pid=3417) INFO 04-19 18:20:06 [kv_cache_utils.py:829] Overriding num_gpu_blocks=0 with num_gpu_blocks_override=512
+(EngineCore pid=3417) INFO 04-19 18:20:06 [gpu_model_runner.py:5876] Profiling CUDA graph memory: PIECEWISE=51 (largest=512), FULL=51 (largest=512)
+(EngineCore pid=3417) INFO 04-19 18:20:08 [gpu_model_runner.py:5955] Estimated CUDA graph memory: 0.84 GiB total
+(EngineCore pid=3417) INFO 04-19 18:20:08 [gpu_worker.py:436] Available KV cache memory: 45.85 GiB
+(EngineCore pid=3417) INFO 04-19 18:20:08 [gpu_worker.py:470] In v0.19, CUDA graph memory profiling will be enabled by default (VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=1), which more accurately accounts for CUDA graph memory during KV cache allocation. To try it now, set VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=1 and increase --gpu-memory-utilization from 0.4000 to 0.4060 to maintain the same effective KV cache size.
+(EngineCore pid=3417) INFO 04-19 18:20:08 [kv_cache_utils.py:1319] GPU KV cache size: 333,840 tokens
+(EngineCore pid=3417) INFO 04-19 18:20:08 [kv_cache_utils.py:1324] Maximum concurrency for 65,536 tokens per request: 5.09x
+(EngineCore pid=3417) 2026-04-19 18:20:08,554 - INFO - autotuner.py:262 - flashinfer.jit: [Autotuner]: Autotuning process starts ...
+(EngineCore pid=3417) 2026-04-19 18:20:08,561 - INFO - autotuner.py:268 - flashinfer.jit: [Autotuner]: Autotuning process ends
+Capturing CUDA graphs (mixed prefill-decode, PIECEWISE): 100%|█| 51/51 [00:01<00:00, 38.23it/s]
+Capturing CUDA graphs (decode, FULL): 100%|████████████████████| 51/51 [00:00<00:00, 59.98it/s]
+(EngineCore pid=3417) INFO 04-19 18:20:11 [gpu_model_runner.py:6046] Graph capturing finished in 3 secs, took 0.96 GiB
+(EngineCore pid=3417) INFO 04-19 18:20:11 [gpu_worker.py:597] CUDA graph pool memory: 0.96 GiB (actual), 0.84 GiB (estimated), difference: 0.12 GiB (12.2%).
+(EngineCore pid=3417) INFO 04-19 18:20:11 [core.py:283] init engine (profile, create kv cache, warmup model) took 17.04 seconds
+2026-04-19 18:20:12.210 | INFO     | matharena.runner:prepare_run:308 - Loading existing runs for qwen3_4b_bon
+2026-04-19 18:20:12.210 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 1 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 2 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 3 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 4 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 5 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 6 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 7 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 8 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 9 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 10 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 11 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 12 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 13 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 14 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 15 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 16 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 17 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 18 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 19 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 20 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 21 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 22 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 23 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 24 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 25 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 26 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 27 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 28 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 29 (will overwrite)
+2026-04-19 18:20:12.211 | INFO     | matharena.runner:prepare_run:317 - Not skipping existing runs for problem 30 (will overwrite)
+2026-04-19 18:20:12.218 | INFO     | matharena.runner:prepare_run:337 - Status file created. Total new runs in the batch sent to solver: 30.
+Printing initial status from logs/status/hmmt/hmmt_feb_2025_qwen3_4b_bon.txt.
+Status as of 2026-04-19 18:20:12
+There are 30 problems; doing 1 runs per problem.
+
+Problem   1: - (1 left)
+Problem   2: - (1 left)
+Problem   3: - (1 left)
+Problem   4: - (1 left)
+Problem   5: - (1 left)
+Problem   6: - (1 left)
+Problem   7: - (1 left)
+Problem   8: - (1 left)
+Problem   9: - (1 left)
+Problem  10: - (1 left)
+Problem  11: - (1 left)
+Problem  12: - (1 left)
+Problem  13: - (1 left)
+Problem  14: - (1 left)
+Problem  15: - (1 left)
+Problem  16: - (1 left)
+Problem  17: - (1 left)
+Problem  18: - (1 left)
+Problem  19: - (1 left)
+Problem  20: - (1 left)
+Problem  21: - (1 left)
+Problem  22: - (1 left)
+Problem  23: - (1 left)
+Problem  24: - (1 left)
+Problem  25: - (1 left)
+Problem  26: - (1 left)
+Problem  27: - (1 left)
+Problem  28: - (1 left)
+Problem  29: - (1 left)
+Problem  30: - (1 left)
+Accuracy for 30 is: 0.0
+Rendering conversations:   0%|                                          | 0/30 [00:00<?, ?it/s]INFO 04-19 18:20:13 [hf.py:314] Detected the chat template content format to be 'string'. You can set `--chat-template-content-format` to override this.
+Rendering conversations: 100%|█████████████████████████████████| 30/30 [00:01<00:00, 23.40it/s]
+Processed prompts: 100%|█| 120/120 [00:04<00:00, 28.83it/s, est. speed input: 4520.91 toks/s, o
+Rendering conversations: 100%|████████████████████████████████| 30/30 [00:00<00:00, 293.15it/s]
+Processed prompts: 100%|█| 30/30 [00:27<00:00,  1.09it/s, est. speed input: 2617.92 toks/s, out
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 820.04it/s]
+Processed prompts: 100%|█| 4/4 [00:24<00:00,  6.21s/it, est. speed input: 97.16 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 655.97it/s]
+Processed prompts: 100%|█| 4/4 [00:05<00:00,  1.43s/it, est. speed input: 470.22 toks/s, output
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 603.13it/s]
+Processed prompts: 100%|█| 4/4 [00:49<00:00, 12.26s/it, est. speed input: 56.35 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 732.66it/s]
+Processed prompts: 100%|█| 4/4 [00:51<00:00, 12.89s/it, est. speed input: 49.81 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 778.20it/s]
+Processed prompts: 100%|█| 4/4 [00:33<00:00,  8.30s/it, est. speed input: 79.84 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 719.40it/s]
+Processed prompts: 100%|█| 4/4 [00:43<00:00, 10.75s/it, est. speed input: 58.86 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 827.48it/s]
+Processed prompts: 100%|█| 4/4 [00:47<00:00, 11.76s/it, est. speed input: 56.28 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 724.06it/s]
+Processed prompts: 100%|█| 4/4 [00:30<00:00,  7.61s/it, est. speed input: 88.79 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 669.27it/s]
+Processed prompts: 100%|█| 4/4 [00:48<00:00, 12.00s/it, est. speed input: 63.57 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 751.33it/s]
+Processed prompts: 100%|█| 4/4 [00:44<00:00, 11.25s/it, est. speed input: 59.22 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 527.22it/s]
+Processed prompts: 100%|█| 4/4 [00:57<00:00, 14.27s/it, est. speed input: 44.58 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 789.22it/s]
+Processed prompts: 100%|█| 4/4 [00:43<00:00, 10.97s/it, est. speed input: 60.82 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 701.80it/s]
+Processed prompts: 100%|█| 4/4 [00:49<00:00, 12.36s/it, est. speed input: 54.55 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 711.08it/s]
+Processed prompts: 100%|█| 4/4 [00:38<00:00,  9.56s/it, est. speed input: 74.03 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 702.24it/s]
+Processed prompts: 100%|█| 4/4 [00:16<00:00,  4.04s/it, est. speed input: 165.48 toks/s, output
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 672.95it/s]
+Processed prompts: 100%|█| 4/4 [00:38<00:00,  9.57s/it, est. speed input: 66.76 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 540.89it/s]
+Processed prompts: 100%|█| 4/4 [00:46<00:00, 11.73s/it, est. speed input: 56.88 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 693.22it/s]
+Processed prompts: 100%|█| 4/4 [00:38<00:00,  9.52s/it, est. speed input: 77.96 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 761.80it/s]
+Processed prompts: 100%|█| 4/4 [00:30<00:00,  7.73s/it, est. speed input: 79.55 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 732.47it/s]
+Processed prompts: 100%|█| 4/4 [00:48<00:00, 12.09s/it, est. speed input: 57.16 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 746.65it/s]
+Processed prompts: 100%|█| 4/4 [00:06<00:00,  1.58s/it, est. speed input: 415.48 toks/s, output
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 775.75it/s]
+Processed prompts: 100%|█| 4/4 [00:32<00:00,  8.25s/it, est. speed input: 80.00 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 695.49it/s]
+Processed prompts: 100%|█| 4/4 [00:27<00:00,  6.89s/it, est. speed input: 94.93 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 427.33it/s]
+Processed prompts: 100%|█| 4/4 [00:39<00:00,  9.87s/it, est. speed input: 121.83 toks/s, output
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 716.03it/s]
+Processed prompts: 100%|█| 4/4 [01:21<00:00, 20.40s/it, est. speed input: 32.84 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 667.80it/s]
+Processed prompts: 100%|█| 4/4 [00:43<00:00, 10.98s/it, est. speed input: 60.41 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 707.48it/s]
+Processed prompts: 100%|█| 4/4 [01:28<00:00, 22.09s/it, est. speed input: 30.60 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 765.10it/s]
+Processed prompts: 100%|█| 4/4 [00:34<00:00,  8.66s/it, est. speed input: 78.99 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 677.57it/s]
+Processed prompts: 100%|█| 4/4 [01:01<00:00, 15.40s/it, est. speed input: 42.74 toks/s, output:
+Rendering prompts: 100%|████████████████████████████████████████| 4/4 [00:00<00:00, 631.86it/s]
+Processed prompts: 100%|█| 4/4 [00:30<00:00,  7.68s/it, est. speed input: 83.30 toks/s, output:
+2026-04-19 18:41:17.877 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P1 (ridx=0)] Received a solver response, analyzing...
+2026-04-19 18:41:17.877 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P1 (ridx=0)] Extracted last message role=assistant.
+2026-04-19 18:41:17.877 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P1 (ridx=0)] Extracting and grading the answer...
+2026-04-19 18:41:17.878 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P1 (ridx=0)] Adding the run to problem runs.
+2026-04-19 18:41:17.879 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P1 (ridx=0)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/1.json.zst
+2026-04-19 18:41:17.890 | INFO     | matharena.runner:process_solver_responses:437 - Problem 1 is done. Answers: ['103'] vs Gold answer: 103. #Correct: 1
+2026-04-19 18:41:17.891 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P2 (ridx=1)] Received a solver response, analyzing...
+2026-04-19 18:41:17.891 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P2 (ridx=1)] Extracted last message role=assistant.
+2026-04-19 18:41:17.891 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P2 (ridx=1)] Extracting and grading the answer...
+2026-04-19 18:41:17.891 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P2 (ridx=1)] Adding the run to problem runs.
+2026-04-19 18:41:17.891 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P2 (ridx=1)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/2.json.zst
+2026-04-19 18:41:17.901 | INFO     | matharena.runner:process_solver_responses:437 - Problem 2 is done. Answers: ['3375'] vs Gold answer: 3375. #Correct: 1
+2026-04-19 18:41:17.904 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P3 (ridx=2)] Received a solver response, analyzing...
+2026-04-19 18:41:17.904 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P3 (ridx=2)] Extracted last message role=assistant.
+2026-04-19 18:41:17.904 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P3 (ridx=2)] Extracting and grading the answer...
+2026-04-19 18:41:17.905 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P3 (ridx=2)] Adding the run to problem runs.
+2026-04-19 18:41:17.905 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P3 (ridx=2)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/3.json.zst
+2026-04-19 18:41:17.915 | INFO     | matharena.runner:process_solver_responses:437 - Problem 3 is done. Answers: ['576'] vs Gold answer: \frac{1}{576}. #Correct: 0
+2026-04-19 18:41:17.916 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P4 (ridx=3)] Received a solver response, analyzing...
+2026-04-19 18:41:17.916 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P4 (ridx=3)] Extracted last message role=assistant.
+2026-04-19 18:41:17.916 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P4 (ridx=3)] Extracting and grading the answer...
+2026-04-19 18:41:17.916 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P4 (ridx=3)] Adding the run to problem runs.
+2026-04-19 18:41:17.916 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P4 (ridx=3)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/4.json.zst
+2026-04-19 18:41:17.926 | INFO     | matharena.runner:process_solver_responses:437 - Problem 4 is done. Answers: ['3052'] vs Gold answer: -984. #Correct: 0
+2026-04-19 18:41:17.926 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P5 (ridx=4)] Received a solver response, analyzing...
+2026-04-19 18:41:17.927 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P5 (ridx=4)] Extracted last message role=assistant.
+2026-04-19 18:41:17.927 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P5 (ridx=4)] Extracting and grading the answer...
+2026-04-19 18:41:17.927 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P5 (ridx=4)] Adding the run to problem runs.
+2026-04-19 18:41:17.927 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P5 (ridx=4)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/5.json.zst
+2026-04-19 18:41:17.937 | INFO     | matharena.runner:process_solver_responses:437 - Problem 5 is done. Answers: ['9000'] vs Gold answer: 890. #Correct: 0
+2026-04-19 18:41:17.937 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P6 (ridx=5)] Received a solver response, analyzing...
+2026-04-19 18:41:17.938 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P6 (ridx=5)] Extracted last message role=assistant.
+2026-04-19 18:41:17.938 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P6 (ridx=5)] Extracting and grading the answer...
+2026-04-19 18:41:17.939 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P6 (ridx=5)] Adding the run to problem runs.
+2026-04-19 18:41:17.939 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P6 (ridx=5)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/6.json.zst
+2026-04-19 18:41:17.948 | INFO     | matharena.runner:process_solver_responses:437 - Problem 6 is done. Answers: ['0'] vs Gold answer: \frac{1311}{2017}. #Correct: 0
+2026-04-19 18:41:17.951 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P7 (ridx=6)] Received a solver response, analyzing...
+2026-04-19 18:41:17.951 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P7 (ridx=6)] Extracted last message role=assistant.
+2026-04-19 18:41:17.951 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P7 (ridx=6)] Extracting and grading the answer...
+2026-04-19 18:41:18.536 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P7 (ridx=6)] Adding the run to problem runs.
+2026-04-19 18:41:18.536 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P7 (ridx=6)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/7.json.zst
+2026-04-19 18:41:18.546 | INFO     | matharena.runner:process_solver_responses:437 - Problem 7 is done. Answers: ['2*sqrt(22)/5'] vs Gold answer: \frac{9 \sqrt{23}}{23}. #Correct: 0
+2026-04-19 18:41:18.546 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P8 (ridx=7)] Received a solver response, analyzing...
+2026-04-19 18:41:18.546 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P8 (ridx=7)] Extracted last message role=assistant.
+2026-04-19 18:41:18.546 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P8 (ridx=7)] Extracting and grading the answer...
+2026-04-19 18:41:18.554 | WARNING  | matharena.grader:extract_and_grade:206 - [qwen3_4b_bon @ P8 (ridx=7)] Numbers appearing in gold answer appear close together in model answer, but answer was incorrect.
+2026-04-19 18:41:18.554 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P8 (ridx=7)] Adding the run to problem runs.
+2026-04-19 18:41:18.554 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P8 (ridx=7)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/8.json.zst
+2026-04-19 18:41:18.563 | INFO     | matharena.runner:process_solver_responses:437 - Problem 8 is done. Answers: ['0'] vs Gold answer: 1-\frac{2}{\pi}. #Correct: 0
+2026-04-19 18:41:18.564 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P9 (ridx=8)] Received a solver response, analyzing...
+2026-04-19 18:41:18.564 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P9 (ridx=8)] Extracted last message role=assistant.
+2026-04-19 18:41:18.564 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P9 (ridx=8)] Extracting and grading the answer...
+2026-04-19 18:41:18.565 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P9 (ridx=8)] Adding the run to problem runs.
+2026-04-19 18:41:18.565 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P9 (ridx=8)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/9.json.zst
+2026-04-19 18:41:18.574 | INFO     | matharena.runner:process_solver_responses:437 - Problem 9 is done. Answers: ['0'] vs Gold answer: 1037. #Correct: 0
+2026-04-19 18:41:18.574 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P10 (ridx=9)] Received a solver response, analyzing...
+2026-04-19 18:41:18.574 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P10 (ridx=9)] Extracted last message role=assistant.
+2026-04-19 18:41:18.575 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P10 (ridx=9)] Extracting and grading the answer...
+2026-04-19 18:41:18.577 | WARNING  | matharena.grader:extract_and_grade:206 - [qwen3_4b_bon @ P10 (ridx=9)] Numbers appearing in gold answer appear close together in model answer, but answer was incorrect.
+2026-04-19 18:41:18.577 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P10 (ridx=9)] Adding the run to problem runs.
+2026-04-19 18:41:18.577 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P10 (ridx=9)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/10.json.zst
+2026-04-19 18:41:18.586 | INFO     | matharena.runner:process_solver_responses:437 - Problem 10 is done. Answers: ['[3,-3]'] vs Gold answer: \frac{-1+\sqrt{17}}{2}, \frac{-1-\sqrt{17}}{2}. #Correct: 0
+2026-04-19 18:41:18.587 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P11 (ridx=10)] Received a solver response, analyzing...
+2026-04-19 18:41:18.587 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P11 (ridx=10)] Extracted last message role=assistant.
+2026-04-19 18:41:18.587 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P11 (ridx=10)] Extracting and grading the answer...
+2026-04-19 18:41:18.587 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P11 (ridx=10)] Adding the run to problem runs.
+2026-04-19 18:41:18.588 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P11 (ridx=10)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/11.json.zst
+2026-04-19 18:41:18.596 | INFO     | matharena.runner:process_solver_responses:437 - Problem 11 is done. Answers: ['32'] vs Gold answer: 56. #Correct: 0
+2026-04-19 18:41:18.597 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P12 (ridx=11)] Received a solver response, analyzing...
+2026-04-19 18:41:18.597 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P12 (ridx=11)] Extracted last message role=assistant.
+2026-04-19 18:41:18.597 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P12 (ridx=11)] Extracting and grading the answer...
+2026-04-19 18:41:18.597 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P12 (ridx=11)] Adding the run to problem runs.
+2026-04-19 18:41:18.597 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P12 (ridx=11)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/12.json.zst
+2026-04-19 18:41:18.606 | INFO     | matharena.runner:process_solver_responses:437 - Problem 12 is done. Answers: ['5'] vs Gold answer: 29. #Correct: 0
+2026-04-19 18:41:18.607 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P13 (ridx=12)] Received a solver response, analyzing...
+2026-04-19 18:41:18.607 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P13 (ridx=12)] Extracted last message role=assistant.
+2026-04-19 18:41:18.607 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P13 (ridx=12)] Extracting and grading the answer...
+2026-04-19 18:41:18.607 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P13 (ridx=12)] Adding the run to problem runs.
+2026-04-19 18:41:18.607 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P13 (ridx=12)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/13.json.zst
+2026-04-19 18:41:18.616 | INFO     | matharena.runner:process_solver_responses:437 - Problem 13 is done. Answers: ['4'] vs Gold answer: 105. #Correct: 0
+2026-04-19 18:41:18.617 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P14 (ridx=13)] Received a solver response, analyzing...
+2026-04-19 18:41:18.617 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P14 (ridx=13)] Extracted last message role=assistant.
+2026-04-19 18:41:18.617 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P14 (ridx=13)] Extracting and grading the answer...
+2026-04-19 18:41:18.617 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P14 (ridx=13)] Adding the run to problem runs.
+2026-04-19 18:41:18.617 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P14 (ridx=13)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/14.json.zst
+2026-04-19 18:41:18.627 | INFO     | matharena.runner:process_solver_responses:437 - Problem 14 is done. Answers: ['20'] vs Gold answer: 2304. #Correct: 0
+2026-04-19 18:41:18.627 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P15 (ridx=14)] Received a solver response, analyzing...
+2026-04-19 18:41:18.627 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P15 (ridx=14)] Extracted last message role=assistant.
+2026-04-19 18:41:18.627 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P15 (ridx=14)] Extracting and grading the answer...
+2026-04-19 18:41:18.627 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P15 (ridx=14)] Adding the run to problem runs.
+2026-04-19 18:41:18.627 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P15 (ridx=14)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/15.json.zst
+2026-04-19 18:41:18.636 | INFO     | matharena.runner:process_solver_responses:437 - Problem 15 is done. Answers: ['202'] vs Gold answer: 200. #Correct: 0
+2026-04-19 18:41:18.637 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P16 (ridx=15)] Received a solver response, analyzing...
+2026-04-19 18:41:18.637 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P16 (ridx=15)] Extracted last message role=assistant.
+2026-04-19 18:41:18.637 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P16 (ridx=15)] Extracting and grading the answer...
+2026-04-19 18:41:18.637 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P16 (ridx=15)] Adding the run to problem runs.
+2026-04-19 18:41:18.637 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P16 (ridx=15)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/16.json.zst
+2026-04-19 18:41:18.647 | INFO     | matharena.runner:process_solver_responses:437 - Problem 16 is done. Answers: ['1682'] vs Gold answer: 6300. #Correct: 0
+2026-04-19 18:41:18.648 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P17 (ridx=16)] Received a solver response, analyzing...
+2026-04-19 18:41:18.648 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P17 (ridx=16)] Extracted last message role=assistant.
+2026-04-19 18:41:18.648 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P17 (ridx=16)] Extracting and grading the answer...
+2026-04-19 18:41:18.649 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P17 (ridx=16)] Adding the run to problem runs.
+2026-04-19 18:41:18.649 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P17 (ridx=16)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/17.json.zst
+2026-04-19 18:41:18.658 | INFO     | matharena.runner:process_solver_responses:437 - Problem 17 is done. Answers: ['0'] vs Gold answer: 2^{25} \cdot 26!. #Correct: 0
+2026-04-19 18:41:18.659 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P18 (ridx=17)] Received a solver response, analyzing...
+2026-04-19 18:41:18.659 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P18 (ridx=17)] Extracted last message role=assistant.
+2026-04-19 18:41:18.659 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P18 (ridx=17)] Extracting and grading the answer...
+2026-04-19 18:41:18.660 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P18 (ridx=17)] Adding the run to problem runs.
+2026-04-19 18:41:18.660 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P18 (ridx=17)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/18.json.zst
+2026-04-19 18:41:18.670 | INFO     | matharena.runner:process_solver_responses:437 - Problem 18 is done. Answers: ['1'] vs Gold answer: \frac{2025}{101}. #Correct: 0
+2026-04-19 18:41:18.671 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P19 (ridx=18)] Received a solver response, analyzing...
+2026-04-19 18:41:18.671 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P19 (ridx=18)] Extracted last message role=assistant.
+2026-04-19 18:41:18.671 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P19 (ridx=18)] Extracting and grading the answer...
+2026-04-19 18:41:18.672 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P19 (ridx=18)] Adding the run to problem runs.
+2026-04-19 18:41:18.672 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P19 (ridx=18)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/19.json.zst
+2026-04-19 18:41:18.681 | INFO     | matharena.runner:process_solver_responses:437 - Problem 19 is done. Answers: ['1/2'] vs Gold answer: \frac{4}{9}. #Correct: 0
+2026-04-19 18:41:18.682 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P20 (ridx=19)] Received a solver response, analyzing...
+2026-04-19 18:41:18.682 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P20 (ridx=19)] Extracted last message role=assistant.
+2026-04-19 18:41:18.682 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P20 (ridx=19)] Extracting and grading the answer...
+2026-04-19 18:41:18.684 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P20 (ridx=19)] Adding the run to problem runs.
+2026-04-19 18:41:18.684 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P20 (ridx=19)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/20.json.zst
+2026-04-19 18:41:18.693 | INFO     | matharena.runner:process_solver_responses:437 - Problem 20 is done. Answers: ['18900'] vs Gold answer: \frac{448}{3}. #Correct: 0
+2026-04-19 18:41:18.693 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P21 (ridx=20)] Received a solver response, analyzing...
+2026-04-19 18:41:18.693 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P21 (ridx=20)] Extracted last message role=assistant.
+2026-04-19 18:41:18.693 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P21 (ridx=20)] Extracting and grading the answer...
+2026-04-19 18:41:18.694 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P21 (ridx=20)] Adding the run to problem runs.
+2026-04-19 18:41:18.694 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P21 (ridx=20)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/21.json.zst
+2026-04-19 18:41:18.702 | INFO     | matharena.runner:process_solver_responses:437 - Problem 21 is done. Answers: ['26'] vs Gold answer: 26. #Correct: 1
+2026-04-19 18:41:18.703 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P22 (ridx=21)] Received a solver response, analyzing...
+2026-04-19 18:41:18.703 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P22 (ridx=21)] Extracted last message role=assistant.
+2026-04-19 18:41:18.703 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P22 (ridx=21)] Extracting and grading the answer...
+2026-04-19 18:41:18.703 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P22 (ridx=21)] Adding the run to problem runs.
+2026-04-19 18:41:18.703 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P22 (ridx=21)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/22.json.zst
+2026-04-19 18:41:18.712 | INFO     | matharena.runner:process_solver_responses:437 - Problem 22 is done. Answers: ['63'] vs Gold answer: 63. #Correct: 1
+2026-04-19 18:41:18.714 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P23 (ridx=22)] Received a solver response, analyzing...
+2026-04-19 18:41:18.714 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P23 (ridx=22)] Extracted last message role=assistant.
+2026-04-19 18:41:18.714 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P23 (ridx=22)] Extracting and grading the answer...
+2026-04-19 18:41:18.715 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P23 (ridx=22)] Adding the run to problem runs.
+2026-04-19 18:41:18.715 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P23 (ridx=22)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/23.json.zst
+2026-04-19 18:41:18.724 | INFO     | matharena.runner:process_solver_responses:437 - Problem 23 is done. Answers: ['8*sqrt(10)'] vs Gold answer: 8\sqrt{10}. #Correct: 1
+2026-04-19 18:41:18.724 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P24 (ridx=23)] Received a solver response, analyzing...
+2026-04-19 18:41:18.724 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P24 (ridx=23)] Extracted last message role=assistant.
+2026-04-19 18:41:18.724 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P24 (ridx=23)] Extracting and grading the answer...
+2026-04-19 18:41:18.725 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P24 (ridx=23)] Adding the run to problem runs.
+2026-04-19 18:41:18.725 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P24 (ridx=23)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/24.json.zst
+2026-04-19 18:41:18.733 | INFO     | matharena.runner:process_solver_responses:437 - Problem 24 is done. Answers: ['100'] vs Gold answer: 20. #Correct: 0
+2026-04-19 18:41:18.734 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P25 (ridx=24)] Received a solver response, analyzing...
+2026-04-19 18:41:18.734 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P25 (ridx=24)] Extracted last message role=assistant.
+2026-04-19 18:41:18.734 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P25 (ridx=24)] Extracting and grading the answer...
+2026-04-19 18:41:18.749 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P25 (ridx=24)] Adding the run to problem runs.
+2026-04-19 18:41:18.749 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P25 (ridx=24)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/25.json.zst
+2026-04-19 18:41:18.759 | INFO     | matharena.runner:process_solver_responses:437 - Problem 25 is done. Answers: ['3'] vs Gold answer: \sqrt{23}-2 \sqrt{3}. #Correct: 0
+2026-04-19 18:41:18.761 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P26 (ridx=25)] Received a solver response, analyzing...
+2026-04-19 18:41:18.761 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P26 (ridx=25)] Extracted last message role=assistant.
+2026-04-19 18:41:18.761 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P26 (ridx=25)] Extracting and grading the answer...
+2026-04-19 18:41:18.762 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P26 (ridx=25)] Adding the run to problem runs.
+2026-04-19 18:41:18.762 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P26 (ridx=25)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/26.json.zst
+2026-04-19 18:41:18.771 | INFO     | matharena.runner:process_solver_responses:437 - Problem 26 is done. Answers: ['9*sqrt(15)'] vs Gold answer: 9\sqrt{15}. #Correct: 1
+2026-04-19 18:41:18.774 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P27 (ridx=26)] Received a solver response, analyzing...
+2026-04-19 18:41:18.774 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P27 (ridx=26)] Extracted last message role=assistant.
+2026-04-19 18:41:18.775 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P27 (ridx=26)] Extracting and grading the answer...
+2026-04-19 18:41:18.778 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P27 (ridx=26)] Adding the run to problem runs.
+2026-04-19 18:41:18.778 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P27 (ridx=26)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/27.json.zst
+2026-04-19 18:41:18.787 | INFO     | matharena.runner:process_solver_responses:437 - Problem 27 is done. Answers: ['1/6'] vs Gold answer: \frac{7}{18}. #Correct: 0
+2026-04-19 18:41:18.789 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P28 (ridx=27)] Received a solver response, analyzing...
+2026-04-19 18:41:18.789 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P28 (ridx=27)] Extracted last message role=assistant.
+2026-04-19 18:41:18.789 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P28 (ridx=27)] Extracting and grading the answer...
+2026-04-19 18:41:18.790 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P28 (ridx=27)] Adding the run to problem runs.
+2026-04-19 18:41:18.790 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P28 (ridx=27)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/28.json.zst
+2026-04-19 18:41:18.799 | INFO     | matharena.runner:process_solver_responses:437 - Problem 28 is done. Answers: ['sqrt(6)'] vs Gold answer: \sqrt{6}. #Correct: 1
+2026-04-19 18:41:18.799 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P29 (ridx=28)] Received a solver response, analyzing...
+2026-04-19 18:41:18.799 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P29 (ridx=28)] Extracted last message role=assistant.
+2026-04-19 18:41:18.799 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P29 (ridx=28)] Extracting and grading the answer...
+2026-04-19 18:41:18.805 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P29 (ridx=28)] Adding the run to problem runs.
+2026-04-19 18:41:18.805 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P29 (ridx=28)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/29.json.zst
+2026-04-19 18:41:18.814 | INFO     | matharena.runner:process_solver_responses:437 - Problem 29 is done. Answers: ['38'] vs Gold answer: 14+4\sqrt{37}. #Correct: 0
+2026-04-19 18:41:18.815 | INFO     | matharena.runner:process_solver_responses:373 - [qwen3_4b_bon @ P30 (ridx=29)] Received a solver response, analyzing...
+2026-04-19 18:41:18.815 | INFO     | matharena.runner:process_solver_responses:385 - [qwen3_4b_bon @ P30 (ridx=29)] Extracted last message role=assistant.
+2026-04-19 18:41:18.815 | INFO     | matharena.runner:process_solver_responses:400 - [qwen3_4b_bon @ P30 (ridx=29)] Extracting and grading the answer...
+2026-04-19 18:41:18.819 | INFO     | matharena.runner:process_solver_responses:426 - [qwen3_4b_bon @ P30 (ridx=29)] Adding the run to problem runs.
+2026-04-19 18:41:18.819 | INFO     | matharena.runner:process_solver_responses:430 - [qwen3_4b_bon @ P30 (ridx=29)] Successfully added a run and updated status. Saving runs to file.
+RUNS: path is: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon/30.json.zst
+2026-04-19 18:41:18.828 | INFO     | matharena.runner:process_solver_responses:437 - Problem 30 is done. Answers: ['0'] vs Gold answer: \sqrt{\frac{95}{24}}. #Correct: 0
+Done. Printing final status from logs/status/hmmt/hmmt_feb_2025_qwen3_4b_bon.txt.
+Status as of 2026-04-19 18:41:18
+There are 30 problems; doing 1 runs per problem.
+
+Problem   1: ✓ (0 left)
+Problem   2: ✓ (0 left)
+Problem   3: X (0 left)
+Problem   4: X (0 left)
+Problem   5: X (0 left)
+Problem   6: X (0 left)
+Problem   7: X (0 left)
+Problem   8: X (0 left)
+Problem   9: X (0 left)
+Problem  10: X (0 left)
+Problem  11: X (0 left)
+Problem  12: X (0 left)
+Problem  13: X (0 left)
+Problem  14: X (0 left)
+Problem  15: X (0 left)
+Problem  16: X (0 left)
+Problem  17: X (0 left)
+Problem  18: X (0 left)
+Problem  19: X (0 left)
+Problem  20: X (0 left)
+Problem  21: ✓ (0 left)
+Problem  22: ✓ (0 left)
+Problem  23: ✓ (0 left)
+Problem  24: X (0 left)
+Problem  25: X (0 left)
+Problem  26: ✓ (0 left)
+Problem  27: X (0 left)
+Problem  28: ✓ (0 left)
+Problem  29: X (0 left)
+Problem  30: X (0 left)
+Accuracy for 30 is: 0.23333333333333334
+Putting to output dir: outputs/hmmt/hmmt_feb_2025/qwen3_4b_bon
+(EngineCore pid=3417) INFO 04-19 18:41:18 [core.py:1210] Shutdown initiated (timeout=0)
+(EngineCore pid=3417) INFO 04-19 18:41:18 [core.py:1233] Shutdown complete
+ERROR 04-19 18:41:19 [core_client.py:667] Engine core proc EngineCore died unexpectedly, shutting down client.
