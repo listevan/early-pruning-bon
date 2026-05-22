@@ -224,6 +224,7 @@ class Model:
             final_selections, selection_tokens = self.select_solution(best_of_n, prompts, responses_list, max_tokens)
 
             organized_outputs[best_of_n]["Final Answers"] = final_selections
+            organized_outputs[best_of_n]["All Answers"] = responses_list
             organized_outputs[best_of_n]["total_tokens"] = [a+b for a,b in zip(selection_tokens, organized_outputs[best_of_n]["total_tokens"])]
 
         return organized_outputs

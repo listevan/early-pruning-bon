@@ -85,13 +85,13 @@ llm = Model(model, seed=seed)
 # model strategy, set to None if not using
 # strategy = UserStrategy(llm=llm.llm, seed=seed)
 # strategy = CountdownStrategy(llm=llm.llm, seed=seed)
-strategy = CompletionStrategy(llm=llm.llm, seed=seed)
-# strategy = None
+# strategy = CompletionStrategy(llm=llm.llm, seed=seed)
+strategy = None
 
-previous_responses_fn = "2026-05-04 05:24:58.543955_bon_1_2_4_8_16_strategy_None_plan_4000_prune_2.json"
-with open(previous_responses_fn, "r") as f:
-    previous_responses = {best_of_n: data["responses"] for best_of_n, data in json.load(f).items()} # dict of best of n to "responses" (list of dicts)
-# previous_responses = None
+# previous_responses_fn = "2026-05-04 05:24:58.543955_bon_1_2_4_8_16_strategy_None_plan_4000_prune_2.json"
+# with open(previous_responses_fn, "r") as f:
+#     previous_responses = {best_of_n: data["responses"] for best_of_n, data in json.load(f).items()} # dict of best of n to "responses" (list of dicts)
+previous_responses = None
 
 data = reasoning_gym.create_dataset(dataset_type, size=num_examples, min_numbers=level, max_numbers=level, seed=seed)
 # load the questions
@@ -131,19 +131,35 @@ def vllm_encoder(obj):
         return obj.__dict__
     return str(obj) # Fallback for any weird types inside
 
+# MAIN GRADING LOOP
 # loop through best_of_n
 for best_of_n in best_of_ns:
     # loop through the different countdown questions
     bon_outputs = outputs[best_of_n]
     outputs[best_of_n]["results"] = []
+    outputs[best_of_n]["random_results"] = []
+    outputs[best_of_n]["best_results"] = []
     outputs[best_of_n]["questions"] = prompts
 
     for i, answer in enumerate(bon_outputs["Final Answers"]):
-        score = data.score_answer(answer=answer, entry=data[i])
-        if score != 1:
-            score = 0
+        all_answers = bon_output["All Answers"]
+
+        # model select score
+        score = 1 if data.score_answer(answer=answer, entry=data[i]) == 1 else 0
         outputs[best_of_n]["results"].append((answer, score))
 
+        # random score
+        random_select = random.randrange(len(allanswers))
+        random_score = 1 if data.score_answer(answer=all_answers[random_select], entry=data[i]) else 0
+        outputs[best_of_n]["random_results"].append((all_answers[random_select], random_score))
+
+        # best score
+        best_score, best_index = max(
+            ((1 if data.score_answer(answer=all_answers[random_select], entry=data[i]) else 0), i) 
+            for i in range(len(all_answers))
+        )
+        outputs[best_of_n]["random_results"].append((all_answers[best_index], best_score))
+        
     print(f"best_of_{best_of_n} score is: {float(sum(result[1] for result in outputs[best_of_n]["results"])) / num_examples} and used average token count of: {float(sum(outputs[best_of_n]["total_tokens"])) / num_examples}", file=sys.stderr)
 
 fname = f"{datetime.datetime.now()}_bon_{'_'.join(list(map(str, best_of_ns)))}_strategy_{strategy.name if strategy else "None"}_plan_{str(max_plan_tokens)}_prune_{str(prune_ratio)}.json"
