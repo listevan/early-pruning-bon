@@ -1,3 +1,6 @@
+from model.utils import extract_content
+from model.rank import ranker
+
 from abc import ABC, abstractmethod
 import re
 import sys
@@ -23,128 +26,7 @@ class Strategy(ABC):
         self.llm = llm
         self.prompt_strategy = prompt_strategy
 
-    def _extract_content(self, text):
-        # extract the <think><\think> tags and return result
-        match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", text, re.DOTALL)
-        if match:
-            return match.group(1).strip()
-        return text.strip()
-    
-    def rank_prompts(self, user_prompts, generated_prompts, max_selection_tokens=16000, max_retries=3): # TODO: 3/27/26: let max_selection_tokens be sufficiently enough
-        # create sampling params for model to determine if it's unique
-        sampling_params = SamplingParams(temperature=0.7, top_p=0.8, top_k=20, max_tokens=max_selection_tokens, seed=self.seed)
-        
-        # 1. Pre-build all the prompts
-        all_prompts = []
-        for user_prompt, generated_prompt in zip(user_prompts, generated_prompts):
-            # Create a list of original indices and shuffle them to combat positional bias
-            shuffled_indices = list(range(len(generated_prompt)))
-            random.shuffle(shuffled_indices)
-            
-            # Build the examples string in the randomized order, but keep the original ID tags
-            examples_str = "".join([
-                f"<example id='i{idx}'>\n{generated_prompt[idx].replace('<think>', '')}\n</example>\n" 
-                for idx in shuffled_indices
-            ])
-
-            num_candidates = len(generated_prompt) 
-            valid_indices = ", ".join([f"i{j}" for j in range(num_candidates)])
-            prompt_content = f"""Rank the {num_candidates} partial solutions based on how likely they are to lead to the correct answer.
-
-            ### Problem:
-            {user_prompt}
-
-            ### Partial Solutions:
-            {examples_str}
-
-            ### Instructions:
-            1. Briefly evaluate the best approaches.
-            2. Rank ALL {num_candidates} solutions from best to worst.
-            3. You must use exactly these indices: {valid_indices}. No duplicates and no omissions.
-
-            Output your response EXACTLY in this format:
-            <evaluation>
-            [Your brief evaluation here]
-            </evaluation>
-            <results>
-            iX
-            iY
-            ...
-            </results>"""
-
-            all_prompts.append([{"role": "user", "content": prompt_content}])
-
-        N = len(user_prompts)
-        
-        # Arrays to hold the final resolved data in the original order
-        final_indexes = [None] * N
-        final_reasonings = [""] * N
-        final_tokens = [0] * N
-
-        # Queue of indices that still need to be processed successfully
-        pending_indices = list(range(N))
-        attempts = 0
-
-        while pending_indices and attempts < max_retries:
-            print(f"Generating Diverse Indexes - Attempt {attempts + 1}/{max_retries}. Pending: {len(pending_indices)}", file=sys.stderr)
-            
-            # Extract only the prompts that need to be re-run
-            current_prompts = [all_prompts[i] for i in pending_indices]
-            
-            outputs = self.llm.chat(current_prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
-            
-            new_pending_indices = []
-
-            for j, output in enumerate(outputs):
-                original_i = pending_indices[j]  # Map batch index back to original index
-                text = self._extract_content(output.outputs[0].text)
-                
-                # Accumulate tokens across retries
-                final_tokens[original_i] += len(output.outputs[0].token_ids)
-                
-                # 1. Isolate the results block
-                results_match = re.findall(r'<results>(.*?)</results>', text, re.DOTALL)
-                results_text = results_match[-1].strip() if results_match else text 
-                
-                # 2. Extract indices and preserve LLM rank order (remove duplicates)
-                expected_length = len(generated_prompts[original_i])
-                parsed_ints = [int(match) for match in re.findall(r'(?:i)?(\d+)', results_text)] 
-                seen = set()
-                unique_ints = [x for x in parsed_ints if not (x in seen or seen.add(x)) and x < expected_length]
-
-                # 3. Check if the LLM output length matches expected length
-                if len(unique_ints) == expected_length:
-                    # Success: Store it and don't add to new_pending_indices
-                    final_indexes[original_i] = unique_ints
-                    final_reasonings[original_i] = text
-                else:
-                    # Failure: Save current state just in case we hit max retries, then queue for retry
-                    # print(text, file=sys.stderr)
-                    final_indexes[original_i] = unique_ints
-                    final_reasonings[original_i] = text
-                    new_pending_indices.append(original_i)
-            
-            # Update the queue for the next loop iteration
-            pending_indices = new_pending_indices
-            attempts += 1
-
-        # Fallback: If any prompts hit max retries and STILL failed length check, randomly fill the missing parts
-        for i in pending_indices:
-            print(f"Index {i} failed length validation after {max_retries} attempts. Randomly padding.", file=sys.stderr)
-            expected_length = len(generated_prompts[i])
-            current_ints = final_indexes[i] or []
-            
-            # Keep only valid indices within bounds
-            valid_ints = [x for x in current_ints if x < expected_length]
-            
-            # Find what is missing and shuffle them
-            missing_ints = [x for x in range(expected_length) if x not in valid_ints]
-            random.shuffle(missing_ints)
-            
-            # Append missing random indices to the end of whatever the LLM successfully ranked
-            final_indexes[i] = valid_ints + missing_ints
-
-        return final_indexes, final_reasonings, final_tokens
+        self.ranker = ranker("Partial Solutions", self.llm, self.seed)
     
     def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000, prune_ratio=1, previous_responses=None, ranked_indexes=None, reasonings=None):
         # TODO 3/27/26: Get 8 full solutions(full solutions) --> and then truncate each of the full solutions so no need to rerun "generate_prompts"
@@ -181,7 +63,7 @@ class Strategy(ABC):
             request_prompts = []
             for candidate in request_output.outputs:
                 # if the plan phase is not finished skip it
-                text = self._extract_content(candidate.text)
+                text = extract_content(candidate.text)
                 if "<plan>" not in text or "</plan>" not in text:
                     continue
                 text = text.split("<plan>")[1].split("</plan>")[0]
@@ -193,7 +75,7 @@ class Strategy(ABC):
             generated_prompts.append(request_prompts) 
         # print(f"original plans are: {generated_prompts[random_question]}")
         
-        ranked_indexes, reasonings, diversity_tokens = self.rank_prompts(user_prompts, generated_prompts, max_selection_tokens)
+        ranked_indexes, reasonings, diversity_tokens = self.ranker.rank(user_prompts, generated_prompts, max_selection_tokens)
 
         total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
 
@@ -292,7 +174,7 @@ class CompletionStrategy(Strategy):
                 total_tokens.append(sum([min(max_plan_tokens, len(response["token_ids"])) for response in request_output]))
         
         if ranked_indexes is None:
-            ranked_indexes, reasonings, diversity_tokens = self.rank_prompts(user_prompts, new_prompts, max_selection_tokens)
+            ranked_indexes, reasonings, diversity_tokens = self.ranker.rank(user_prompts, new_prompts, max_selection_tokens)
 
             total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
             print(f"selection takes {sum(diversity_tokens) / len(diversity_tokens)} tokens", file=sys.stderr)

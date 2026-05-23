@@ -142,14 +142,14 @@ for best_of_n in best_of_ns:
     outputs[best_of_n]["questions"] = prompts
 
     for i, answer in enumerate(bon_outputs["Final Answers"]):
-        all_answers = bon_output["All Answers"]
+        all_answers = bon_outputs["All Answers"]
 
         # model select score
         score = 1 if data.score_answer(answer=answer, entry=data[i]) == 1 else 0
         outputs[best_of_n]["results"].append((answer, score))
 
         # random score
-        random_select = random.randrange(len(allanswers))
+        random_select = random.randrange(len(all_answers))
         random_score = 1 if data.score_answer(answer=all_answers[random_select], entry=data[i]) else 0
         outputs[best_of_n]["random_results"].append((all_answers[random_select], random_score))
 

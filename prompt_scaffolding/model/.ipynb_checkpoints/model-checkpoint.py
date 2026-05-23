@@ -1,21 +1,11 @@
 from model.strategies import HypothesisStrategy, PlanStrategy, ConceptStrategy, ReasoningStructureStrategy, CountdownStrategy, UserStrategy
+from model.utils import extract_answer
 
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
 import random
 import sys
 import re
-
-def extract_answer(text):
-    # Pattern looks for everything between <answer> and </answer>
-    # re.DOTALL allows the dot (.) to match newlines if the answer is multi-line
-    match = re.findall(r'<answer>(.*?)</answer>', text, re.DOTALL)
-    
-    if match:
-        return match[-1].strip()
-    
-    # If no tags exist, return the original string
-    return text
 
 answer_instruction = """
     \n\nEach number must be used at most once.\n
@@ -27,9 +17,151 @@ answer_instruction = """
 """
 
 class Model:
-    def __init__(self, model_name: str, seed=42):
-        self.llm = LLM(model=model_name, tensor_parallel_size=1, max_model_len=60000)# max_model_len=65536)
+    def __init__(self, model_name: str, seed=42, group_size=4):
+        self.llm = LLM(model=model_name, tensor_parallel_size=1, max_model_len=32768)# max_model_len=65536)
         self.seed = seed
+
+        self.ranker = ranker("Solutions", self.llm, self.seed)
+        self.group_size=group_size
+
+    def tourney_select_solution(self, best_of_n, group_size, prompts, responses_list, max_tokens=16384, max_retries=3):
+        # 1. Validate constraints and ensure group size is legal
+        group_size = max(2, group_size)
+        N = len(prompts)
+        
+        # Pre-extract all candidate texts to match select_solution and avoid re-extracting
+        all_candidates_text = [[
+            extract_answer(resp.text if hasattr(resp, 'text') else resp.get("text", "")) 
+            for resp in prompt_responses
+        ] for prompt_responses in responses_list]
+
+        # Arrays to hold current state and final tracking data
+        active_indices = [list(range(len(all_candidates_text[i]))) for i in range(N)]
+        total_tokens = [0] * N
+        bracket_history = [[] for _ in range(N)]
+        round_num = 1
+
+        # 2. Tournament loop: Repeat until the remaining group < group_size
+        while any(len(idx_list) >= group_size for idx_list in active_indices):
+            batch_prompts = []
+            batch_rankees = []
+            chunk_metadata = []  # Maps flat batches back to (prompt_idx, original_indices_chunk)
+            
+            next_active_indices = [[] for _ in range(N)]
+            
+            # Chunking logic
+            for i in range(N):
+                current_active = active_indices[i]
+                
+                # If a prompt's group is already strictly less than group_size, it advances without ranking
+                if len(current_active) < group_size:
+                    next_active_indices[i].extend(current_active)
+                    continue
+                    
+                # Separate into smaller groups of group_size
+                for j in range(0, len(current_active), group_size):
+                    chunk = current_active[j:j+group_size]
+                    
+                    if len(chunk) > 1:
+                        batch_prompts.append(prompts[i])
+                        batch_rankees.append([all_candidates_text[i][idx] for idx in chunk])
+                        chunk_metadata.append((i, chunk))
+                    else:
+                        # Leftover chunk of 1 automatically advances
+                        next_active_indices[i].extend(chunk)
+                        
+            if not batch_prompts:
+                break  # Safety break if no groups were formed
+                
+            # Execute batch ranking
+            print(f"Tournament Round {round_num} - Ranking {len(batch_prompts)} groups...", file=sys.stderr)
+            chunk_final_indexes, chunk_reasonings, chunk_tokens = self.ranker.rank(
+                user_prompts=batch_prompts, 
+                rankees=batch_rankees, 
+                max_retries=max_retries
+            )
+            
+            # 3. Process rankings and prune off half
+            for k, (i, chunk) in enumerate(chunk_metadata):
+                total_tokens[i] += chunk_tokens[k]
+                
+                ranked_local_indices = chunk_final_indexes[k]
+                reasoning = chunk_reasonings[k]
+                
+                # Determine top half (ceiling division to favor keeping more on odd sizes)
+                num_to_keep = (len(chunk) + 1) // 2
+                
+                # Ensure parsed indices are within the valid bounds of this chunk
+                valid_local_indices = [idx for idx in ranked_local_indices if idx < len(chunk)]
+                
+                # Deterministic fallback if ranker output is incomplete
+                if len(valid_local_indices) < num_to_keep:
+                    missing = [idx for idx in range(len(chunk)) if idx not in valid_local_indices]
+                    valid_local_indices.extend(missing)
+                    
+                kept_local = valid_local_indices[:num_to_keep]
+                
+                # Map local chunk indices back to global candidates index
+                kept_global = [chunk[idx] for idx in kept_local]
+                ranked_global = [chunk[idx] for idx in valid_local_indices]
+                
+                next_active_indices[i].extend(kept_global)
+                
+                # Record organized tracking of selection
+                bracket_history[i].append({
+                    "round": round_num,
+                    "group_candidates": chunk,
+                    "ranked_order": ranked_global,
+                    "kept_candidates": kept_global,
+                    "reasoning": reasoning
+                })
+                
+            active_indices = next_active_indices
+            round_num += 1
+
+        # 4. Final selection for the remaining candidates using select_solution
+        print(f"Tournament Complete. Running final select_solution for remaining candidates...", file=sys.stderr)
+        
+        subset_responses_list = []
+        for i in range(N):
+            subset = [responses_list[i][idx] for idx in active_indices[i]]
+            subset_responses_list.append(subset)
+            
+        final_selections, final_sel_tokens = self.select_solution(
+            best_of_n=group_size,  
+            prompts=prompts,
+            responses_list=subset_responses_list,
+            max_tokens=max_tokens,
+            max_retries=max_retries
+        )
+        
+        # 5. Resolve final indexes and consolidate returns
+        final_indexes = [None] * N
+        
+        for i in range(N):
+            total_tokens[i] += final_sel_tokens[i]
+            chosen_text = final_selections[i]
+            
+            # Map the text selected by select_solution back to the original index
+            subset_texts = [all_candidates_text[i][idx] for idx in active_indices[i]]
+            try:
+                local_idx = subset_texts.index(chosen_text)
+                final_indexes[i] = active_indices[i][local_idx]
+            except ValueError:
+                # Deterministic fallback just in case text mapping fails
+                print(f"Index {i} failed final text resolution. Defaulting to first active.", file=sys.stderr)
+                final_indexes[i] = active_indices[i][0]
+                
+            # Log final bracket action
+            bracket_history[i].append({
+                "round": "Final Selection",
+                "group_candidates": active_indices[i],
+                "ranked_order": active_indices[i], 
+                "kept_candidates": [final_indexes[i]],
+                "reasoning": "Determined via select_solution module (text match back to index)."
+            })
+
+        return final_indexes, bracket_history, total_tokens
 
     def select_solution(self, best_of_n, prompts, responses_list, max_tokens=16384, max_retries=3):
         sampling_params = SamplingParams(temperature=0.7, top_p=0.8, top_k=20, max_tokens=max_tokens, seed=self.seed)
@@ -85,6 +217,7 @@ class Model:
         
         # Arrays to hold the final resolved data in the original order
         final_selections = [None] * N
+        final_reasons = [""] * N  # <-- Added array to hold reasonings
         total_tokens = [0] * N
         
         # Queue of indices that still need to be processed successfully
@@ -122,6 +255,10 @@ class Model:
                         # Validate the parsed index is within bounds
                         if 0 <= parsed_idx < len(all_candidates_text[original_i]):
                             final_selections[original_i] = all_candidates_text[original_i][parsed_idx]
+                            
+                            eval_match = re.search(r'<evaluation>\s*(.*?)\s*</evaluation>', text, re.DOTALL)
+                            final_reasons[original_i] = eval_match.group(1).strip() if eval_match else text
+                            
                             success = True
                     except (AttributeError, ValueError):
                         pass
@@ -137,10 +274,11 @@ class Model:
         for i in pending_indices:
             print(f"Index {i} failed validation after {max_retries} attempts. Defaulting to first candidate.", file=sys.stderr)
             final_selections[i] = all_candidates_text[i][0] # Deterministic fallback. Absolutely NO random choosing.
+            final_reasons[i] = "Failed to parse output after max retries. Defaulted to first candidate." # <-- Added fallback reason
 
-        return final_selections, total_tokens
+        return final_selections, final_reasons, total_tokens
 
-    def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None):
+    def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None, use_tourney=False):
         # see if user decided to use a strategy
         if strategy:
             organized_outputs = {}
@@ -220,10 +358,14 @@ class Model:
         for best_of_n in best_of_ns:
             # responses_list shape: [num_prompts, best_of_n]
             responses_list = organized_outputs[best_of_n]["responses"]
-            
-            final_selections, selection_tokens = self.select_solution(best_of_n, prompts, responses_list, max_tokens)
+
+            if use_tourney:
+                final_selections, selection_reasons, selection_tokens = self.tourney_select_solution(self, best_of_n, self.group_size, prompts, responses_list)
+            else:
+                final_selections, selection_reasons, selection_tokens = self.select_solution(best_of_n, prompts, responses_list, max_tokens)
 
             organized_outputs[best_of_n]["Final Answers"] = final_selections
+            organized_outputs[best_of_n]["Selection Reasons"] = selection_reasons
             organized_outputs[best_of_n]["All Answers"] = responses_list
             organized_outputs[best_of_n]["total_tokens"] = [a+b for a,b in zip(selection_tokens, organized_outputs[best_of_n]["total_tokens"])]
 
