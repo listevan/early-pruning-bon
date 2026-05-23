@@ -62,6 +62,17 @@ def parse_args():
         default=2, 
         help="Will prune down to bon // prune_ratio results (at 1, will let model decide)"
     )
+    parser.add_argument(
+        "--tourney",
+        action="store_true",
+        help="Determines whether to let model select or use a tourney"
+    )
+    parser.add_argument(
+        "--group_size",
+        type=int,
+        default=4,
+        help="Group sizes for tourney"
+    )
 
     return parser.parse_args()
 
@@ -76,6 +87,8 @@ temperature = args.temperature
 best_of_ns = args.best_of_ns
 max_plan_tokens = args.max_plan_tokens
 prune_ratio = max(1, args.prune_ratio)
+tourney = args.tourney
+group_size = args.group_size
 
 # initialize model
 model="Qwen/Qwen3-4B-Instruct-2507"
@@ -98,7 +111,7 @@ data = reasoning_gym.create_dataset(dataset_type, size=num_examples, min_numbers
 prompts = [entry["question"] for entry in data]
 
 # generate responses
-outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy, prune_ratio=prune_ratio, previous_responses=previous_responses)
+outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy, prune_ratio=prune_ratio, previous_responses=previous_responses, use_tourney=tourney)
 
 def clean_math_string(line):
     # 1. Remove \boxed{ and the closing }

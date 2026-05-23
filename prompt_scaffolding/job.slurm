@@ -23,6 +23,6 @@ echo "Using uv from: $(which uv)"
 
 # --- EXECUTION ---
 cd ~/CS497/prompt_scaffolding
-# uv run main.py
-./run_experiment.sh
+uv run main.py --tourney
+# ./run_experiment.sh
 # sleep 5h

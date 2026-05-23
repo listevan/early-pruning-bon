@@ -1,5 +1,6 @@
 from model.strategies import HypothesisStrategy, PlanStrategy, ConceptStrategy, ReasoningStructureStrategy, CountdownStrategy, UserStrategy
 from model.utils import extract_answer
+from model.rank import ranker
 
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
@@ -17,12 +18,11 @@ answer_instruction = """
 """
 
 class Model:
-    def __init__(self, model_name: str, seed=42, group_size=4):
+    def __init__(self, model_name: str, seed=42):
         self.llm = LLM(model=model_name, tensor_parallel_size=1, max_model_len=32768)# max_model_len=65536)
         self.seed = seed
 
         self.ranker = ranker("Solutions", self.llm, self.seed)
-        self.group_size=group_size
 
     def tourney_select_solution(self, best_of_n, group_size, prompts, responses_list, max_tokens=16384, max_retries=3):
         # 1. Validate constraints and ensure group size is legal
@@ -278,7 +278,7 @@ class Model:
 
         return final_selections, final_reasons, total_tokens
 
-    def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None, use_tourney=False):
+    def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None, use_tourney=False, group_size=4):
         # see if user decided to use a strategy
         if strategy:
             organized_outputs = {}
@@ -360,7 +360,7 @@ class Model:
             responses_list = organized_outputs[best_of_n]["responses"]
 
             if use_tourney:
-                final_selections, selection_reasons, selection_tokens = self.tourney_select_solution(self, best_of_n, self.group_size, prompts, responses_list)
+                final_selections, selection_reasons, selection_tokens = self.tourney_select_solution(self, best_of_n, group_size, prompts, responses_list)
             else:
                 final_selections, selection_reasons, selection_tokens = self.select_solution(best_of_n, prompts, responses_list, max_tokens)
 
