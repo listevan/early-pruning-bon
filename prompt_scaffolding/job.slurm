@@ -11,7 +11,7 @@
 #SBATCH -e slurm-%j.err
 #SBATCH -o slurm-%j.out
 ### GPU options ###
-#SBATCH --gpus-per-node=1
+#SBATCH --gpus-per-node=4
 #SBATCH --gpu-bind=none
 ##SBATCH --mail-user=sl212@illinois.edu
 ##SBATCH --mail-type="BEGIN,END"
@@ -23,6 +23,6 @@ echo "Using uv from: $(which uv)"
 
 # --- EXECUTION ---
 cd ~/CS497/prompt_scaffolding
-uv run main.py --tourney
+uv run main.py
 # ./run_experiment.sh
 # sleep 5h
