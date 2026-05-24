@@ -11,7 +11,7 @@ def extract_answer(text):
     # If no tags exist, return the original string
     return text
 
-def extract_content(self, text):
+def extract_content(text):
     # extract the <think><\think> tags and return result
     match = re.search(r"(?<=<\/think>)\s*([\s\S]*)", text, re.DOTALL)
     if match:

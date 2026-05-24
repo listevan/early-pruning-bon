@@ -136,32 +136,19 @@ class Model:
         )
         
         # 5. Resolve final indexes and consolidate returns
-        final_indexes = [None] * N
-        
         for i in range(N):
             total_tokens[i] += final_sel_tokens[i]
-            chosen_text = final_selections[i]
-            
-            # Map the text selected by select_solution back to the original index
-            subset_texts = [all_candidates_text[i][idx] for idx in active_indices[i]]
-            try:
-                local_idx = subset_texts.index(chosen_text)
-                final_indexes[i] = active_indices[i][local_idx]
-            except ValueError:
-                # Deterministic fallback just in case text mapping fails
-                print(f"Index {i} failed final text resolution. Defaulting to first active.", file=sys.stderr)
-                final_indexes[i] = active_indices[i][0]
                 
             # Log final bracket action
             bracket_history[i].append({
                 "round": "Final Selection",
                 "group_candidates": active_indices[i],
                 "ranked_order": active_indices[i], 
-                "kept_candidates": [final_indexes[i]],
+                "kept_candidates": [final_selections[i]],
                 "reasoning": final_sel_reasoning
             })
 
-        return final_indexes, bracket_history, total_tokens
+        return final_selections, bracket_history, total_tokens
 
     def select_solution(self, best_of_n, prompts, responses_list, max_tokens=16384, max_retries=3):
         sampling_params = SamplingParams(temperature=0.7, top_p=0.8, top_k=20, max_tokens=max_tokens, seed=self.seed)

@@ -4,6 +4,8 @@ import random
 import sys
 import re
 
+from model.utils import extract_content
+
 class ranker():
     def __init__(self, item: str, llm, seed):
         self.item = item # what are we ranking
