@@ -127,7 +127,7 @@ class Model:
             subset = [responses_list[i][idx] for idx in active_indices[i]]
             subset_responses_list.append(subset)
             
-        final_selections, final_sel_tokens = self.select_solution(
+        final_selections, final_sel_reasoning, final_sel_tokens = self.select_solution(
             best_of_n=group_size,  
             prompts=prompts,
             responses_list=subset_responses_list,
@@ -158,7 +158,7 @@ class Model:
                 "group_candidates": active_indices[i],
                 "ranked_order": active_indices[i], 
                 "kept_candidates": [final_indexes[i]],
-                "reasoning": "Determined via select_solution module (text match back to index)."
+                "reasoning": final_sel_reasoning
             })
 
         return final_indexes, bracket_history, total_tokens

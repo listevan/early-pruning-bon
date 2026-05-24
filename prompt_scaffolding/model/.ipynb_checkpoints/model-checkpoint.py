@@ -1,5 +1,6 @@
 from model.strategies import HypothesisStrategy, PlanStrategy, ConceptStrategy, ReasoningStructureStrategy, CountdownStrategy, UserStrategy
 from model.utils import extract_answer
+from model.rank import ranker
 
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
@@ -17,12 +18,11 @@ answer_instruction = """
 """
 
 class Model:
-    def __init__(self, model_name: str, seed=42, group_size=4):
-        self.llm = LLM(model=model_name, tensor_parallel_size=1, max_model_len=32768)# max_model_len=65536)
+    def __init__(self, model_name: str, num_gpus: int = 1, seed=42):
+        self.llm = LLM(model=model_name, tensor_parallel_size=num_gpus, max_model_len=32768)# max_model_len=65536)
         self.seed = seed
 
         self.ranker = ranker("Solutions", self.llm, self.seed)
-        self.group_size=group_size
 
     def tourney_select_solution(self, best_of_n, group_size, prompts, responses_list, max_tokens=16384, max_retries=3):
         # 1. Validate constraints and ensure group size is legal
@@ -127,7 +127,7 @@ class Model:
             subset = [responses_list[i][idx] for idx in active_indices[i]]
             subset_responses_list.append(subset)
             
-        final_selections, final_sel_tokens = self.select_solution(
+        final_selections, final_sel_reasoning, final_sel_tokens = self.select_solution(
             best_of_n=group_size,  
             prompts=prompts,
             responses_list=subset_responses_list,
@@ -158,7 +158,7 @@ class Model:
                 "group_candidates": active_indices[i],
                 "ranked_order": active_indices[i], 
                 "kept_candidates": [final_indexes[i]],
-                "reasoning": "Determined via select_solution module (text match back to index)."
+                "reasoning": final_sel_reasoning
             })
 
         return final_indexes, bracket_history, total_tokens
@@ -278,7 +278,7 @@ class Model:
 
         return final_selections, final_reasons, total_tokens
 
-    def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None, use_tourney=False):
+    def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None, group_size=4):
         # see if user decided to use a strategy
         if strategy:
             organized_outputs = {}
@@ -359,14 +359,20 @@ class Model:
             # responses_list shape: [num_prompts, best_of_n]
             responses_list = organized_outputs[best_of_n]["responses"]
 
-            if use_tourney:
-                final_selections, selection_reasons, selection_tokens = self.tourney_select_solution(self, best_of_n, self.group_size, prompts, responses_list)
-            else:
-                final_selections, selection_reasons, selection_tokens = self.select_solution(best_of_n, prompts, responses_list, max_tokens)
+            output = organized_outputs[best_of_n]
+            base_tokens = output["total_tokens"]
 
-            organized_outputs[best_of_n]["Final Answers"] = final_selections
-            organized_outputs[best_of_n]["Selection Reasons"] = selection_reasons
-            organized_outputs[best_of_n]["All Answers"] = responses_list
-            organized_outputs[best_of_n]["total_tokens"] = [a+b for a,b in zip(selection_tokens, organized_outputs[best_of_n]["total_tokens"])]
+            final_sel, final_reasons, final_tokens = self.select_solution(best_of_n, prompts, responses_list, max_tokens)
 
+            tourney_sel, tourney_reasons, tourney_tokens = self.tourney_select_solution(best_of_n, group_size, prompts, responses_list)
+
+            output["Final Answers"] = final_sel
+            output["Selection Reasons"] = final_reasons
+            output["total_tokens"] = [base + new for base, new in zip(base_tokens, final_tokens)]
+
+            output["Tourney Answers"] = tourney_sel
+            output["Tourney Selection Reasons"] = tourney_reasons
+            output["tourney_total_tokens"] = [base + new for base, new in zip(base_tokens, tourney_tokens)]
+
+            organized_outputs[best_of_n]["All Answers"] = [[response.text for response in prompt_responses] for prompt_responses in responses_list]
         return organized_outputs
