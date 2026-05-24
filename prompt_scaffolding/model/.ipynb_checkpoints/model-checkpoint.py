@@ -361,5 +361,5 @@ class Model:
             output["Tourney Selection Reasons"] = tourney_reasons
             output["tourney_total_tokens"] = [base + new for base, new in zip(base_tokens, tourney_tokens)]
 
-            organized_outputs[best_of_n]["All Answers"] = [[response.text for response in prompt_responses] for prompt_responses in responses_list]
+            organized_outputs[best_of_n]["All Answers"] = [[response.text if hasattr(response, 'text') else response["text"] for response in prompt_responses] for prompt_responses in responses_list]
         return organized_outputs

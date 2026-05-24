@@ -25,12 +25,12 @@ for mpt in "${MAX_PLAN_TOKENS[@]}"; do
         # Extract the JSON filename
         CLEAN_FILENAME=$(grep -m 1 '\.json' "$TEMP_FILE")
         
-        # Run the plotting script if a filename was found
-        if [[ -n "$CLEAN_FILENAME" ]]; then
-            uv run plot_results.py --completion_fn "$CLEAN_FILENAME"
-        else
-            echo "Warning: No .json filename found in output for max_plan_tokens=${mpt}, prune_ratio=${pr}"
-        fi
+        # # Run the plotting script if a filename was found
+        # if [[ -n "$CLEAN_FILENAME" ]]; then
+        #     uv run plot_results.py --completion_fn "$CLEAN_FILENAME"
+        # else
+        #     echo "Warning: No .json filename found in output for max_plan_tokens=${mpt}, prune_ratio=${pr}"
+        # fi
     done
 done
 
