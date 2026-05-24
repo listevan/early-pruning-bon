@@ -71,7 +71,7 @@ def parse_args():
     parser.add_argument(
         "--num_gpus",
         type=int,
-        default=4, # Change to however many A100s you are requesting in Slurm
+        default=1, # Change to however many A100s you are requesting in Slurm
         help="Number of GPUs to use for Data Parallelism"
     )
 
