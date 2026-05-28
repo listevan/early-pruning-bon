@@ -12,7 +12,7 @@ echo " PHASE 1: Running Baseline Generation"
 echo "======================================================"
 
 # Run baseline and save output to temp file
-uv run main.py --baseline > "$TEMP_FILE"
+uv run main.py --num_gpus 4 --baseline > "$TEMP_FILE"
 
 # Extract the nicely formatted JSON filename using awk for cross-platform safety
 BASELINE_JSON=$(grep "Saving format fixed JSON to:" "$TEMP_FILE" | awk -F': ' '{print $2}')
@@ -38,7 +38,7 @@ for mpt in "${MAX_PLAN_TOKENS[@]}"; do
         echo "Running: max_plan_tokens=${mpt} | prune_ratio=${pr}"
         
         # Pass the cache file, mpt, and pr to the script
-        uv run main.py --cache_fn "baseline_cache.json" --max_plan_tokens "$mpt" --prune_ratio "$pr" > "$TEMP_FILE"
+        uv run main.py --num_gpus 4 --cache_fn "baseline_cache.json" --max_plan_tokens "$mpt" --prune_ratio "$pr" > "$TEMP_FILE"
         
         # Extract the saved JSON filename
         CLEAN_FILENAME=$(grep "Saving format fixed JSON to:" "$TEMP_FILE" | awk -F': ' '{print $2}')
