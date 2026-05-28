@@ -305,7 +305,7 @@ class Model:
             # Determine the chunks for this BoN
             if previous_responses is None:
                 # We are building the cache: slice base_max_responses into chunks
-                num_chunks = max_bon // bon
+                num_chunks = min(3, max_bon // bon)
                 if num_chunks == 0: continue
                 
                 chunks_for_bon = []
