@@ -141,14 +141,11 @@ class CompletionStrategy(Strategy):
     def __init__(self, llm, seed=42):
         super().__init__(llm, "", "CompletionStrategy", seed)
     
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=500, prune_ratio=1, previous_responses=None, ranked_indexes=None, reasonings=None):
-        # TODO: test with different mumber of max_plan_tokens (first few 100 is even better)
-        # TODO: 3/27/26: Vary max_plan_tokens and make sure essence of solution is within these 500 tokens(so make sure that 500 is enough) --> treat as hyperparameter and just test around(no good way to test it)
-        # TODO: 3/27/26: Thinking models tend to do bad with <think></think> because training doesn't condition on it
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=500, prune_ratio=1, previous_responses=None, group_size=4):
         new_prompts = []
-        total_tokens = []
-        indexes = []
-
+        base_tokens = []
+        
+        # 1. Generate or load base plans, immediately stripping VLLM objects to save memory
         if previous_responses is None:
             sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_plan_tokens, seed=self.seed)
             print("Generating Completion Initial Response", file=sys.stderr)
@@ -160,34 +157,52 @@ class CompletionStrategy(Strategy):
                 )}
             ] for prompt in user_prompts], sampling_params=sampling_params)
 
-            # import pdb; pdb.set_trace()
-
-            for i, request_output in enumerate(outputs):
+            for request_output in outputs:
                 new_prompts.append([single_output.text for single_output in request_output.outputs])
-                total_tokens.append(sum(len(single_output.token_ids) for single_output in request_output.outputs))
-                # with open("newprompts_temp.txt", "+a") as f:
-                    # f.write(f"{new_prompts}\n")
+                base_tokens.append(sum(len(single_output.token_ids) for single_output in request_output.outputs))
         else:
+            # previous_responses are now expected to be stripped dicts: {"text": ..., "token_count": ...}
             tokenizer = self.llm.get_tokenizer()
-            for i, request_output in enumerate(previous_responses):
-                new_prompts.append([tokenizer.decode(response["token_ids"][:max_plan_tokens]) for response in request_output])
-                total_tokens.append(sum([min(max_plan_tokens, len(response["token_ids"])) for response in request_output]))
-        
-        if ranked_indexes is None:
-            ranked_indexes, reasonings, diversity_tokens = self.ranker.rank(user_prompts, new_prompts, max_selection_tokens)
-
-            total_tokens = [a + b for a, b in zip(total_tokens, diversity_tokens)]
-            print(f"selection takes {sum(diversity_tokens) / len(diversity_tokens)} tokens", file=sys.stderr)
-
+            for request_output in previous_responses:
+                prompt_texts = []
+                prompt_tokens = 0
+                for resp in request_output:
+                    # If the response is already short enough, keep it as is
+                    if resp["token_count"] <= max_plan_tokens:
+                        prompt_texts.append(resp["text"])
+                        prompt_tokens += resp["token_count"]
+                    else:
+                        # Re-tokenize, truncate exactly to max_plan_tokens, and decode
+                        encoded = tokenizer.encode(resp["text"], add_special_tokens=False)
+                        truncated_text = tokenizer.decode(encoded[:max_plan_tokens])
+                        prompt_texts.append(truncated_text)
+                        prompt_tokens += max_plan_tokens
+                        
+                new_prompts.append(prompt_texts)
+                base_tokens.append(prompt_tokens)
+                
         number_choices = int(max(1, best_of_n // prune_ratio))
-        final_processed_indexes = []
-        for i in range(len(user_prompts)):
-            # Take top 'number_choices'
-            selected_slice = ranked_indexes[i][:number_choices]
-            # Your original code sorts them here:
-            final_processed_indexes.append(selected_slice)
-
-        generated_diverse_prompts = [[new_prompts[i][diverse_index] for diverse_index in diverse_indexes if diverse_index < len(new_prompts[i])] for i, diverse_indexes in enumerate(final_processed_indexes)]       
         
-        return {"generated_prompts": new_prompts, "ranked_indexes": ranked_indexes, "indexes": final_processed_indexes, "reasonings": reasonings, "generated_diverse_prompts": generated_diverse_prompts, "total_tokens": total_tokens}
+        # 2. PATH 1: Ranked Pruning
+        ranked_indexes, reasonings, rank_tokens = self.ranker.rank(user_prompts, new_prompts, max_selection_tokens)
+        final_ranked_indexes = [indices[:number_choices] for indices in ranked_indexes]
+        ranked_diverse_prompts = [[new_prompts[i][idx] for idx in diverse_indexes if idx < len(new_prompts[i])] for i, diverse_indexes in enumerate(final_ranked_indexes)]
         
+        # 3. PATH 2: Random Pruning
+        final_random_indexes = [random.sample(range(len(new_prompts[i])), min(number_choices, len(new_prompts[i]))) for i in range(len(user_prompts))]
+        random_diverse_prompts = [[new_prompts[i][idx] for idx in diverse_indexes] for i, diverse_indexes in enumerate(final_random_indexes)]
+        
+        # 4. PATH 3: Tournament Pruning
+        tourney_indexes, tourney_tokens = self.ranker.tourney_rank(user_prompts, new_prompts, group_size, number_choices)
+        tourney_diverse_prompts = [[new_prompts[i][idx] for idx in diverse_indexes if idx < len(new_prompts[i])] for i, diverse_indexes in enumerate(tourney_indexes)]
+        
+        # Return all paths and base generation tokens
+        return {
+            "base_prompts": new_prompts,
+            "base_tokens": base_tokens,
+            "paths": {
+                "rank": {"prompts": ranked_diverse_prompts, "tokens": rank_tokens},
+                "random": {"prompts": random_diverse_prompts, "tokens": [0]*len(user_prompts)},
+                "tourney": {"prompts": tourney_diverse_prompts, "tokens": tourney_tokens}
+            }
+        }

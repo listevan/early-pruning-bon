@@ -10,6 +10,7 @@ import sys
 import datetime
 import json
 import argparse
+import statistics
 
 seed = 42
 random.seed(seed)
@@ -75,6 +76,17 @@ def parse_args():
         default=1, # Change to however many A100s you are requesting in Slurm
         help="Number of GPUs to use for Data Parallelism"
     )
+    parser.add_argument(
+        "--baseline", 
+        action="store_true", 
+        help="Run baseline generation (no strategy)."
+    )
+    parser.add_argument(
+        "--cache_fn", 
+        type=str, 
+        default="", 
+        help="Path to raw baseline cache file."
+    )
 
     return parser.parse_args()
 
@@ -99,16 +111,21 @@ if __name__ == '__main__':
     # model = "Qwen/Qwen3-0.6B"
     llm = Model(model, num_gpus, seed=seed)
 
-    # model strategy, set to None if not using
-    strategy = CompletionStrategy(llm=llm.llm, seed=seed)
-    # strategy = None
+    # Configure strategy based on command line flag
+    if args.baseline:
+        strategy = None
+    else:
+        strategy = CompletionStrategy(llm=llm.llm, seed=seed)
 
-    previous_responses_fn = "2026-05-24 05:59:19.521543_bon_1_2_4_8_16_strategy_None_plan_4000_prune_2.json"
-    try:
-        with open(previous_responses_fn, "r") as f:
-            # dict of best of n to "responses" (list of dicts)
-            previous_responses = {best_of_n: data["responses"] for best_of_n, data in json.load(f).items()} 
-    except FileNotFoundError:
+    # Load from cache file if provided
+    if args.cache_fn:
+        try:
+            with open(args.cache_fn, "r") as f:
+                previous_responses = json.load(f)
+        except FileNotFoundError:
+            print(f"Warning: Cache file {args.cache_fn} not found. Running from scratch.", file=sys.stderr)
+            previous_responses = None
+    else:
         previous_responses = None
 
     data = reasoning_gym.create_dataset(dataset_type, size=num_examples, min_numbers=level, max_numbers=level, seed=seed)
@@ -117,46 +134,121 @@ if __name__ == '__main__':
 
     # generate responses
     outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy, prune_ratio=prune_ratio, previous_responses=previous_responses)
+    
+    # Intercept and save the raw baseline cache if in baseline mode
+    raw_base = outputs.pop("raw_base_responses", None)
+    if args.baseline and raw_base:
+        with open("baseline_cache.json", "w") as f:
+            json.dump(raw_base, f)
+        print("Saved raw baseline generations to baseline_cache.json", file=sys.stderr)
 
     # MAIN GRADING LOOP
-    # loop through best_of_n
-    for best_of_n in best_of_ns:
-        # loop through the different countdown questions
-        bon_outputs = outputs[best_of_n]
-        bon_outputs["results"] = []
-        bon_outputs["random_results"] = []
-        bon_outputs["best_results"] = []
-        bon_outputs["tourney_results"] = []
-        bon_outputs["questions"] = prompts
-
-        for i, (answer, all_answers, tourney_answer) in enumerate(zip(bon_outputs["Final Answers"], bon_outputs["All Answers"], bon_outputs["Tourney Answers"])):
-
-            # model select score
-            score = 1 if data.score_answer(answer=answer, entry=data[i]) == 1 else 0
-            bon_outputs["results"].append((answer, score))
-
-            # random score
-            random_select = random.randrange(len(all_answers))
-            random_score = 1 if data.score_answer(answer=extract_answer(all_answers[random_select]), entry=data[i]) == 1 else 0
-            bon_outputs["random_results"].append((all_answers[random_select], random_score))
+    
+    # Process only relevant output branches based on strategy choice
+    paths_to_process = ["baseline"] if strategy is None else ["rank", "random", "tourney"]
+    
+    for path in paths_to_process:
+        path_outputs = {}
+        print(f"\n--- Evaluating Path: {path} ---", file=sys.stderr)
+        
+        for best_of_n in best_of_ns:
+            bon_data = outputs[path].get(best_of_n)
+            if not bon_data: continue
             
-            # best score TODO: currently bad rerun this
-            best_ans, best_score = all_answers[0], 0  # Fallback if none are correct
-            for ans in all_answers:
-                if data.score_answer(answer=extract_answer(ans), entry=data[i]) == 1:
-                    best_ans, best_score = ans, 1
-                    break  # Stop immediately! We found a perfect score.
-            bon_outputs["best_results"].append((best_ans, best_score)) 
-
-            # tourney score
-            tourney_score = 1 if data.score_answer(answer=tourney_answer, entry=data[i]) == 1 else 0
-            bon_outputs["tourney_results"].append((tourney_answer, tourney_score)) 
+            chunks = bon_data["chunks"]
+            num_chunks = len(chunks)
             
-        print(f"best_of_{best_of_n} score is: {float(sum(result[1] for result in bon_outputs["results"])) / num_examples} and used average token count of: {float(sum(bon_outputs["total_tokens"])) / num_examples}", file=sys.stderr)
+            # Aggregate storage mapping to each individual prompt
+            agg_results = [[] for _ in range(num_examples)]
+            agg_random_results = [[] for _ in range(num_examples)]
+            agg_best_results = [[] for _ in range(num_examples)]
+            agg_tourney_results = [[] for _ in range(num_examples)]
+            prompt_token_usage = [[] for _ in range(num_examples)]
+            
+            # 1. Gather scores dynamically across all chunks for this BoN
+            for chunk in chunks:
+                for i, (answer, all_answers, tourney_answer, tokens) in enumerate(zip(chunk["Final Answers"], chunk["All Answers"], chunk["Tourney Answers"], chunk["total_tokens"])):
+                    # Model final select score
+                    score = 1 if data.score_answer(answer=answer, entry=data[i]) == 1 else 0
+                    
+                    # Random selection score
+                    random_select = random.randrange(len(all_answers))
+                    random_score = 1 if data.score_answer(answer=extract_answer(all_answers[random_select]), entry=data[i]) == 1 else 0
+                    
+                    # Best possible score (ceiling)
+                    best_ans, best_score = all_answers[0], 0
+                    for ans in all_answers:
+                        if data.score_answer(answer=extract_answer(ans), entry=data[i]) == 1:
+                            best_ans, best_score = ans, 1
+                            break
+                            
+                    # Tourney logic selection score
+                    tourney_score = 1 if data.score_answer(answer=tourney_answer, entry=data[i]) == 1 else 0
+                    
+                    agg_results[i].append({"answer": answer, "score": score})
+                    agg_random_results[i].append({"answer": all_answers[random_select], "score": random_score})
+                    agg_best_results[i].append({"answer": best_ans, "score": best_score})
+                    agg_tourney_results[i].append({"answer": tourney_answer, "score": tourney_score})
+                    
+                    prompt_token_usage[i].append(tokens)
 
-    fname = f"{datetime.datetime.now()}_bon_{'_'.join(list(map(str, best_of_ns)))}_strategy_{strategy.name if strategy else "None"}_plan_{str(max_plan_tokens)}_prune_{str(prune_ratio)}.json"
-    print(fname)
-    with open(fname, "w") as f:
-        json.dump(outputs, f, indent=4, default=vllm_encoder)
+            # 2. Compile metrics into the uniform JSON layout requested
+            final_metrics = {
+                "questions": prompts,
+                "dataset_metrics": {},
+                "prompt_metrics": []
+            }
+            
+            all_dataset_tokens = []
+            total_score = 0
+            
+            for i in range(num_examples):
+                scores = [res["score"] for res in agg_results[i]]
+                tokens = prompt_token_usage[i]
+                
+                mean_score = statistics.mean(scores)
+                total_score += mean_score
+                
+                mean_tokens = statistics.mean(tokens)
+                std_tokens = statistics.stdev(tokens) if len(tokens) > 1 else 0.0
+                
+                final_metrics["prompt_metrics"].append({
+                    "mean_score": mean_score,
+                    "mean_tokens": mean_tokens,
+                    "std_tokens": std_tokens,
+                    "chunks_data": {
+                        "results": agg_results[i],
+                        "random_results": agg_random_results[i],
+                        "best_results": agg_best_results[i],
+                        "tourney_results": agg_tourney_results[i]
+                    }
+                })
+                
+                all_dataset_tokens.extend(tokens)
+                
+            # Dataset-wide global token distributions
+            dataset_mean_tokens = statistics.mean(all_dataset_tokens) if all_dataset_tokens else 0
+            dataset_std_tokens = statistics.stdev(all_dataset_tokens) if len(all_dataset_tokens) > 1 else 0.0
+            
+            final_metrics["dataset_metrics"] = {
+                "average_score": total_score / num_examples,
+                "mean_tokens": dataset_mean_tokens,
+                "std_tokens": dataset_std_tokens,
+                "num_chunks_averaged": num_chunks
+            }
+            
+            path_outputs[best_of_n] = final_metrics
+            print(f"Path: {path} | best_of_{best_of_n} avg score: {final_metrics['dataset_metrics']['average_score']:.4f} | avg tokens: {dataset_mean_tokens:.2f}", file=sys.stderr)
 
-    format_json_inplace(fname)
+        # 3. Save isolated, perfectly formatted JSON file for each valid path
+        time_str = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        strat_name = strategy.name if strategy else "None"
+        bons_str = '_'.join(map(str, best_of_ns))
+        
+        fname = f"{time_str}_{path}_bon_{bons_str}_strat_{strat_name}_plan_{max_plan_tokens}_prune_{prune_ratio}.json"
+        print(f"Saving format fixed JSON to: {fname}")
+        
+        with open(fname, "w") as f:
+            json.dump(path_outputs, f, indent=4, default=vllm_encoder)
+
+        format_json_inplace(fname)

@@ -127,3 +127,60 @@ class ranker():
             final_indexes[i] = valid_ints + missing_ints
 
         return final_indexes, final_reasonings, final_tokens
+    def tourney_rank(self, user_prompts, rankees, group_size, target_count, max_retries=3):
+        """
+        Tournament style ranking for partial plans.
+        Groups candidates, ranks them, keeps the top half, and repeats until target_count is reached.
+        """
+        N = len(user_prompts)
+        active_indices = [list(range(len(rankees[i]))) for i in range(N)]
+        total_tokens = [0] * N
+        
+        while any(len(idx_list) > target_count for idx_list in active_indices):
+            batch_prompts = []
+            batch_rankees = []
+            chunk_metadata = []
+            next_active_indices = [[] for _ in range(N)]
+            
+            for i in range(N):
+                current_active = active_indices[i]
+                if len(current_active) <= target_count:
+                    next_active_indices[i].extend(current_active)
+                    continue
+                
+                for j in range(0, len(current_active), group_size):
+                    chunk = current_active[j:j+group_size]
+                    if len(chunk) > 1:
+                        batch_prompts.append(user_prompts[i])
+                        batch_rankees.append([rankees[i][idx] for idx in chunk])
+                        chunk_metadata.append((i, chunk))
+                    else:
+                        next_active_indices[i].extend(chunk)
+            
+            if not batch_prompts:
+                break
+                
+            chunk_final_indexes, _, chunk_tokens = self.rank(batch_prompts, batch_rankees, max_retries=max_retries)
+            
+            for k, (i, chunk) in enumerate(chunk_metadata):
+                total_tokens[i] += chunk_tokens[k]
+                ranked_local_indices = chunk_final_indexes[k]
+                
+                # Keep top half (ceiling division to favor keeping more on odd sizes)
+                num_to_keep = (len(chunk) + 1) // 2
+                valid_local_indices = [idx for idx in ranked_local_indices if idx < len(chunk)]
+                
+                # Fallback if VLLM missed indices
+                if len(valid_local_indices) < num_to_keep:
+                    missing = [idx for idx in range(len(chunk)) if idx not in valid_local_indices]
+                    valid_local_indices.extend(missing)
+                
+                kept_local = valid_local_indices[:num_to_keep]
+                kept_global = [chunk[idx] for idx in kept_local]
+                next_active_indices[i].extend(kept_global)
+                
+            active_indices = next_active_indices
+
+        # Truncate any overshoot to exactly match target_count
+        final_indexes = [indices[:target_count] for indices in active_indices]
+        return final_indexes, total_tokens

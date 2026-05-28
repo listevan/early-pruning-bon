@@ -1,5 +1,6 @@
 import re
 import json
+import sys
 
 def extract_answer(text):
     # Pattern looks for everything between <answer> and </answer>

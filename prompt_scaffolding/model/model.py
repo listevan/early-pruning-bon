@@ -266,100 +266,125 @@ class Model:
         return final_selections, final_reasons, total_tokens
 
     def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None, group_size=4):
-        # see if user decided to use a strategy
-        if strategy:
-            organized_outputs = {}
-            
-
-            # loop through the best_of_ns to run diversification and generation for each n
-            for i, best_of_n in enumerate(sorted(best_of_ns, reverse=True)):
-                ranked_indexes = None # can move outside if you want the ranking to be reused, but then token usage may be incorrect
-                reasonings = None
-
-                filtered_ranked_indexes = None
-                if ranked_indexes is not None:
-                    filtered_ranked_indexes = [[idx for idx in prompt_ranks if idx < best_of_n] for prompt_ranks in ranked_indexes]
-
-                # if so, use the strategy to generate a set of diverse prompts (from the original best_of_n), ignore formatting part of the prompt
-                if previous_responses is None:
-                    bon_previous_responses = None
-                else:
-                    bon_previous_responses = previous_responses[str(best_of_n)]
-                organized_outputs[best_of_n] = strategy.generate_prompts(prompts, best_of_n, temperature, max_plan_tokens=max_plan_tokens, prune_ratio=prune_ratio, previous_responses=bon_previous_responses, ranked_indexes=filtered_ranked_indexes, reasonings=reasonings)
-                if ranked_indexes is None:
-                    ranked_indexes = organized_outputs[best_of_n]["ranked_indexes"]
-                    reasonings = organized_outputs[best_of_n]["reasonings"]
-                
-                new_request_prompts = organized_outputs[best_of_n]["generated_diverse_prompts"]
-
-                organized_outputs[best_of_n]["responses"] = []
-                
-                # define sampling parameters with user hyperparameters, TODO 4/10: try top_p=1     
-                sampling_params = SamplingParams(temperature=temperature, top_p=0.95, stop=["</answer>"], include_stop_str_in_output=True, max_tokens=max_tokens, seed=self.seed)
-                
-                # loop through the question prompts and then through diversified prompts to generate the results
-                for j, (diverse_request_prompts, og_prompt) in enumerate(zip(new_request_prompts, prompts)):
-                    if previous_responses is None or strategy.name != "CompletionStrategy": # if we're regenerating
-                        if strategy.name == "CompletionStrategy":
-                            print("Completion Continuing Generation", file=sys.stderr)
-                            formatted_variants = [f"<|im_start|>system\nAfter thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}.<|im_end|>\n<|im_start|>user\n{og_prompt}<|im_end|>\n<|im_start|>assistant\n{diverse_prompt}" for diverse_prompt in diverse_request_prompts]
-                            outputs = self.llm.generate(formatted_variants, sampling_params=sampling_params)
-                        else:
-                            print("Non-Completion Generating Solutions", file=sys.stderr)
-                            formatted_variants = [[{"role": "system", "content": f"After thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}."}, {"role": "user", "content": og_prompt + "\n" + diverse_prompt + answer_instruction}] for diverse_prompt in diverse_request_prompts]
-                            outputs = self.llm.chat(formatted_variants, sampling_params=sampling_params)
-                    
-                        organized_outputs[best_of_n]["responses"].append([request_output.outputs[0] for request_output in outputs])
-                        organized_outputs[best_of_n]["total_tokens"][j] += sum(len(request_output.outputs[0].token_ids) for request_output in outputs)
-                    else:
-                        # use indexes to choose the responses and get total_tokens
-                        organized_outputs[best_of_n]["responses"].append([previous_responses[str(best_of_n)][j][index] for index in organized_outputs[best_of_n]["indexes"][j] if index < len(previous_responses[str(best_of_n)][j])])
-                        organized_outputs[best_of_n]["total_tokens"][j] += sum(max(len(response["token_ids"])-max_plan_tokens, 0) for response in organized_outputs[best_of_n]["responses"][-1])
-        else: # TODO: don't use system prompt just add to user prompt in none-strat generation, add text to make it think/reason step-by-step
-            print("Strategy is none...", file=sys.stderr)
-            # if not use user hyperparameters to generate results from prompt
-            sampling_params = SamplingParams(n=max(best_of_ns), temperature=temperature, top_p=1, max_tokens=max_tokens, seed=self.seed)
-            # Pass system prompt and answer_instructions when no strategy is used
-            print("None Generating Solutions", file=sys.stderr)
-            outputs = self.llm.chat([[
-                {"role": "user", "content": (
-                    f"{prompt}\n\n"
-                    "First, write out your step-by-step thoughts on how to solve this in plain text without using any tags. "
-                    "Then, provide your final answer strictly inside <answer></answer> tags."
-                )}
-            ] for prompt in prompts], sampling_params=sampling_params)
-
-            # loop through questions to create a dictionary for each of the best_of_n results
-            organized_outputs = {}
-            
-            for best_of_n in best_of_ns:
-                organized_outputs[best_of_n] = {"generated_prompts": [], "indexes": [], "generated_diverse_prompts": [], "total_tokens": [], "responses": []}
-
-                for i, request_output in enumerate(outputs):
-                    selected = random.sample(range(max(best_of_ns)), best_of_n)
-                    organized_outputs[best_of_n]["responses"].append([request_output.outputs[select] for select in selected])
-                    organized_outputs[best_of_n]["total_tokens"].append(sum(len(request_output.outputs[select].token_ids) for select in selected))
-
+        organized_outputs = {
+            "baseline": {},
+            "rank": {},
+            "random": {},
+            "tourney": {}
+        }
         
-        # Extract and select single answer
-        for best_of_n in best_of_ns:
-            # responses_list shape: [num_prompts, best_of_n]
-            responses_list = organized_outputs[best_of_n]["responses"]
+        max_bon = max(best_of_ns)
+        
+        # We will populate this if we are running the baseline (no cache)
+        raw_chunks_cache = {}
+        
+        # 1. Base Generation: Only if no cache is provided
+        if previous_responses is None:
+            if strategy is None:
+                # Baseline generation
+                sampling_params = SamplingParams(n=max_bon, temperature=temperature, top_p=1, max_tokens=max_tokens, seed=self.seed)
+                print("Generating Baseline Max BoN Solutions", file=sys.stderr)
+                outputs = self.llm.chat([[{"role": "user", "content": f"{prompt}\n\nFirst, write out your step-by-step thoughts on how to solve this in plain text without using any tags. Then, provide your final answer strictly inside <answer></answer> tags."}] for prompt in prompts], sampling_params=sampling_params)
+                base_max_responses = [[{"text": out.text, "token_count": len(out.token_ids)} for out in req.outputs] for req in outputs]
+            else:
+                # Completion strategy initial plan generation
+                plan_sampling = SamplingParams(n=max_bon, temperature=temperature, top_p=0.95, max_tokens=max_plan_tokens, seed=self.seed)
+                print("Generating Completion Initial Response", file=sys.stderr)
+                outputs = self.llm.chat([[{"role": "user", "content": f"{prompt}\n\nFirst, write out your step-by-step thoughts on how to solve this in plain text without using any tags. Then, provide your final answer strictly inside <answer></answer> tags."}] for prompt in prompts], sampling_params=plan_sampling)
+                base_max_responses = [[{"text": out.text, "token_count": len(out.token_ids)} for out in req.outputs] for req in outputs]
+                
+        # 2. Iterate through each BoN
+        for bon in sorted(best_of_ns, reverse=True):
+            # Initialize storage
+            if strategy is None:
+                organized_outputs["baseline"][bon] = {"chunks": []}
+            else:
+                for path in ["rank", "random", "tourney"]:
+                    organized_outputs[path][bon] = {"chunks": []}
 
-            output = organized_outputs[best_of_n]
-            base_tokens = output["total_tokens"]
+            # Determine the chunks for this BoN
+            if previous_responses is None:
+                # We are building the cache: slice base_max_responses into chunks
+                num_chunks = max_bon // bon
+                if num_chunks == 0: continue
+                
+                chunks_for_bon = []
+                for chunk_idx in range(num_chunks):
+                    start_idx = chunk_idx * bon
+                    end_idx = start_idx + bon
+                    current_chunk = [[resp for resp in prompt_resps[start_idx:end_idx]] for prompt_resps in base_max_responses]
+                    chunks_for_bon.append(current_chunk)
+                
+                # Save these chunks for the cache export
+                raw_chunks_cache[str(bon)] = chunks_for_bon
+            else:
+                # We are using the cache: load pre-made chunks directly
+                chunks_for_bon = previous_responses.get(str(bon), [])
 
-            final_sel, final_reasons, final_tokens = self.select_solution(best_of_n, prompts, responses_list, max_tokens)
+            # Process each chunk iteratively
+            for current_chunk in chunks_for_bon:
+                if strategy is None:
+                    # Baseline: current_chunk already has final answers
+                    chunk_data = self._process_final_selection(prompts, bon, current_chunk, group_size, max_tokens)
+                    organized_outputs["baseline"][bon]["chunks"].append(chunk_data)
+                else:
+                    # Pruning Strategy: Prune plans, finish generation, then select
+                    strat_out = strategy.generate_prompts(
+                        prompts, bon, temperature, 
+                        prune_ratio=prune_ratio, 
+                        previous_responses=current_chunk, 
+                        group_size=group_size
+                    )
+                    
+                    for path in ["rank", "random", "tourney"]:
+                        diverse_prompts = strat_out["paths"][path]["prompts"]
+                        path_selection_tokens = strat_out["paths"][path]["tokens"]
+                        base_tokens = strat_out["base_tokens"]
+                        
+                        path_responses = []
+                        path_gen_tokens = []
+                        
+                        # Continue final answer generation
+                        sampling_params = SamplingParams(temperature=temperature, top_p=0.95, stop=["</answer>"], include_stop_str_in_output=True, max_tokens=max_tokens, seed=self.seed)
+                        
+                        for i, diverse_req_prompts in enumerate(diverse_prompts):
+                            formatted_variants = [f"<|im_start|>system\nAfter thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}.<|im_end|>\n<|im_start|>user\n{prompts[i]}<|im_end|>\n<|im_start|>assistant\n{dp}" for dp in diverse_req_prompts]
+                            outputs = self.llm.generate(formatted_variants, sampling_params=sampling_params, use_tqdm=False)
+                            
+                            # Concatenate the plan with the completion and store token count
+                            path_responses.append([{"text": dp + out.outputs[0].text, "token_count": len(out.outputs[0].token_ids)} for dp, out in zip(diverse_req_prompts, outputs)])
+                            path_gen_tokens.append(sum(len(out.outputs[0].token_ids) for out in outputs))
+                            
+                        # Select solutions from completions
+                        chunk_data = self._process_final_selection(prompts, len(path_responses[0]), path_responses, group_size, max_tokens)
+                        
+                        # Tally aggregate tokens ensuring we account for every step in the pipeline
+                        chunk_data["total_tokens"] = [b + s + g + c for b, s, g, c in zip(base_tokens, path_selection_tokens, path_gen_tokens, chunk_data["sel_tokens"])]
+                        chunk_data["tourney_total_tokens"] = [b + s + g + c for b, s, g, c in zip(base_tokens, path_selection_tokens, path_gen_tokens, chunk_data["tourney_sel_tokens"])]
+                        
+                        organized_outputs[path][bon]["chunks"].append(chunk_data)
 
-            tourney_sel, tourney_reasons, tourney_tokens = self.tourney_select_solution(best_of_n, group_size, prompts, responses_list)
-
-            output["Final Answers"] = final_sel
-            output["Selection Reasons"] = final_reasons
-            output["total_tokens"] = [base + new for base, new in zip(base_tokens, final_tokens)]
-
-            output["Tourney Answers"] = tourney_sel
-            output["Tourney Selection Reasons"] = tourney_reasons
-            output["tourney_total_tokens"] = [base + new for base, new in zip(base_tokens, tourney_tokens)]
-
-            organized_outputs[best_of_n]["All Answers"] = [[response.text if hasattr(response, 'text') else response["text"] for response in prompt_responses] for prompt_responses in responses_list]
+        # Append the successfully built cache so main.py can save it
+        if previous_responses is None:
+            organized_outputs["raw_base_responses"] = raw_chunks_cache
+            
         return organized_outputs
+    def _process_final_selection(self, prompts, bon, responses_list, group_size, max_tokens):
+        """Helper handling selection and formatting of final completions."""
+        final_sel, final_reasons, final_tokens = self.select_solution(bon, prompts, responses_list, max_tokens)
+        tourney_sel, tourney_reasons, tourney_tokens = self.tourney_select_solution(bon, group_size, prompts, responses_list)
+        
+        all_answers = [[resp["text"] for resp in prompt_resps] for prompt_resps in responses_list]
+        base_tokens = [sum(resp["token_count"] for resp in prompt_resps) for prompt_resps in responses_list]
+
+        return {
+            "Final Answers": final_sel,
+            "Selection Reasons": final_reasons,
+            "Tourney Answers": tourney_sel,
+            "Tourney Selection Reasons": tourney_reasons,
+            "All Answers": all_answers,
+            "sel_tokens": final_tokens,
+            "tourney_sel_tokens": tourney_tokens,
+            "total_tokens": [b + f for b, f in zip(base_tokens, final_tokens)],
+            "tourney_total_tokens": [b + t for b, t in zip(base_tokens, tourney_tokens)]
+        }
