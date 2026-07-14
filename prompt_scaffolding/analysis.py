@@ -204,17 +204,63 @@ def main():
     ap.add_argument("directory", nargs="?", help="directory of result JSONs")
     ap.add_argument("--plan", help="filter on plan_<N> in the filename")
     ap.add_argument("--prune", help="filter on prune_<R> in the filename")
+    ap.add_argument("--dump-scores", metavar="OUT.json",
+                    help="write a compact scores-only extract and exit. The raw JSONs "
+                         "carry full response text and run to gigabytes, which cannot be "
+                         "committed. This holds only the 0/1 scores and the token means, "
+                         "so it is small enough to check in -- which is what makes every "
+                         "number below reproducible off the cluster.")
+    ap.add_argument("--scores", metavar="IN.json",
+                    help="read a scores extract written by --dump-scores instead of raw JSONs")
     for arm in ARMS:
         ap.add_argument(f"--{arm}", help=f"explicit path to the {arm} JSON")
     args = ap.parse_args()
 
-    files = {a: getattr(args, a) for a in ARMS if getattr(args, a)}
-    if args.directory:
-        files = {**discover(args.directory, args.plan, args.prune), **files}
-    if not files:
-        ap.error("no result JSONs found. Pass a directory or explicit --<arm> paths.")
+    if args.scores:
+        with open(args.scores) as f:
+            packed = json.load(f)
+        data = {}
+        for arm, blocks in packed["arms"].items():
+            data[arm] = {}
+            for n_str, b in blocks.items():
+                data[arm][int(n_str)] = {
+                    "scores": {sel: {tuple(map(int, k.split(","))): v
+                                     for k, v in b["scores"][sel].items()}
+                               for sel in SELECTORS},
+                    "tokens": {int(k): v for k, v in b["tokens"].items()},
+                }
+        files = {a: packed["source_files"].get(a, "(from extract)") for a in data}
+    else:
+        files = {a: getattr(args, a) for a in ARMS if getattr(args, a)}
+        if args.directory:
+            files = {**discover(args.directory, args.plan, args.prune), **files}
+        if not files:
+            ap.error("no result JSONs found. Pass a directory, explicit --<arm> paths, "
+                     "or a --scores extract.")
+        data = {arm: load_arm(p) for arm, p in files.items()}
 
-    data = {arm: load_arm(p) for arm, p in files.items()}
+    if args.dump_scores:
+        packed = {
+            "source_files": {a: os.path.basename(p) for a, p in files.items()},
+            "arms": {
+                arm: {
+                    str(n): {
+                        "scores": {sel: {f"{q},{c}": v
+                                         for (q, c), v in blk["scores"][sel].items()}
+                                   for sel in SELECTORS},
+                        "tokens": {str(q): t for q, t in blk["tokens"].items()},
+                    }
+                    for n, blk in blocks.items()
+                }
+                for arm, blocks in data.items()
+            },
+        }
+        with open(args.dump_scores, "w") as f:
+            json.dump(packed, f, separators=(",", ":"))
+        size = os.path.getsize(args.dump_scores)
+        print(f"wrote {args.dump_scores} ({size / 1024:.0f} KB) from {len(data)} arms")
+        print("commit this. then: python3 analysis.py --scores " + args.dump_scores)
+        return
 
     print("=" * 108)
     print("FILES")
