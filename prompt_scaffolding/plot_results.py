@@ -2,6 +2,7 @@ import json
 import matplotlib.pyplot as plt
 import argparse
 import os
+import statistics
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Parse result filenames and plot comparative metrics.")
@@ -36,17 +37,24 @@ def parse_results(results_fn):
     
     for bon in sorted_bons:
         bon_data = results[bon]
-        num_examples = len(bon_data["results"])
-        
-        # Calculate total tokens used for this best_of_n setting
-        total_tokens = sum(bon_data["total_tokens"])
-        
-        # Extract total correct counts for each selection mechanism
-        score_selected = sum([score[1] for score in bon_data["results"]])
-        score_random   = sum([score[1] for score in bon_data["random_results"]])
-        score_best     = sum([score[1] for score in bon_data["best_results"]])
-        score_tourney  = sum([score[1] for score in bon_data["tourney_results"]])
-        
+        prompt_metrics = bon_data["prompt_metrics"]
+        num_examples = len(prompt_metrics)
+
+        # Each prompt holds one entry per chunk; average over chunks, then sum over prompts.
+        def score_sum(key):
+            return sum(
+                statistics.mean([r["score"] for r in pm["chunks_data"][key]])
+                for pm in prompt_metrics
+            )
+
+        # mean_tokens is already the per-prompt mean over chunks; summing gives the dataset total
+        total_tokens = sum(pm["mean_tokens"] for pm in prompt_metrics)
+
+        score_selected = score_sum("results")
+        score_random   = score_sum("random_results")
+        score_best     = score_sum("best_results")
+        score_tourney  = score_sum("tourney_results")
+
         metrics[bon] = {
             "tokens": total_tokens,
             "acc": {

@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # 1. Find the first file matching the None strategy pattern
-NONE_FILE=$(ls *strategy_None*.json 2>/dev/null | head -n 1)
+#    main.py emits "_strat_None_" / "_strat_CompletionStrategy_" (see main.py fname)
+NONE_FILE=$(ls *strat_None*.json 2>/dev/null | head -n 1)
 
 # Exit if no 'None' strategy file is found
 if [ -z "$NONE_FILE" ]; then
-    echo "Error: No 'None' strategy file found matching *strategy_None*.json"
+    echo "Error: No 'None' strategy file found matching *strat_None*.json"
     exit 1
 fi
 
@@ -15,7 +16,7 @@ echo "================================================================"
 
 # 2. Loop through all files matching the Completion strategy pattern
 shopt -s nullglob # Ensures the loop doesn't run if no files are found
-for COMP_FILE in *strategy_CompletionStrategy*.json; do
+for COMP_FILE in *strat_CompletionStrategy*.json; do
     echo "Running plot generation for:"
     echo " -> $COMP_FILE"
     

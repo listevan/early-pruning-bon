@@ -133,7 +133,7 @@ if __name__ == '__main__':
     prompts = [entry["question"] for entry in data]
 
     # generate responses
-    outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, strategy=strategy, prune_ratio=prune_ratio, previous_responses=previous_responses)
+    outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, max_plan_tokens=max_plan_tokens, strategy=strategy, prune_ratio=prune_ratio, previous_responses=previous_responses, group_size=group_size)
     
     # Intercept and save the raw baseline cache if in baseline mode
     raw_base = outputs.pop("raw_base_responses", None)

@@ -19,7 +19,9 @@ answer_instruction = """
 
 class Model:
     def __init__(self, model_name: str, num_gpus: int = 1, seed=42):
-        self.llm = LLM(model=model_name, tensor_parallel_size=num_gpus, max_model_len=32768)# max_model_len=65536)
+        # rank()/select() concatenate every candidate plan into one prompt, so the context
+        # needed is ~ bon * max_plan_tokens. At bon=16 this caps max_plan_tokens at ~4071.
+        self.llm = LLM(model=model_name, tensor_parallel_size=num_gpus, max_model_len=65536)
         self.seed = seed
 
         self.ranker = ranker("Solutions", self.llm, self.seed)
@@ -330,9 +332,10 @@ class Model:
                 else:
                     # Pruning Strategy: Prune plans, finish generation, then select
                     strat_out = strategy.generate_prompts(
-                        prompts, bon, temperature, 
-                        prune_ratio=prune_ratio, 
-                        previous_responses=current_chunk, 
+                        prompts, bon, temperature,
+                        max_plan_tokens=max_plan_tokens,
+                        prune_ratio=prune_ratio,
+                        previous_responses=current_chunk,
                         group_size=group_size
                     )
                     
@@ -347,14 +350,31 @@ class Model:
                         # Continue final answer generation
                         sampling_params = SamplingParams(temperature=temperature, top_p=0.95, stop=["</answer>"], include_stop_str_in_output=True, max_tokens=max_tokens, seed=self.seed)
                         
+                        # Flatten every (prompt, plan) pair into ONE batched call. One call per
+                        # prompt starves vLLM: number_choices is 1 at bon<=2, so each call would
+                        # decode a single 16k-token sequence at a time, 100 times, per path.
+                        flat_variants = []
+                        flat_plans = []
+                        group_sizes = []
                         for i, diverse_req_prompts in enumerate(diverse_prompts):
-                            formatted_variants = [f"<|im_start|>system\nAfter thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}.<|im_end|>\n<|im_start|>user\n{prompts[i]}<|im_end|>\n<|im_start|>assistant\n{dp}" for dp in diverse_req_prompts]
-                            outputs = self.llm.generate(formatted_variants, sampling_params=sampling_params, use_tqdm=False)
-                            
+                            for dp in diverse_req_prompts:
+                                flat_variants.append(f"<|im_start|>system\nAfter thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}.<|im_end|>\n<|im_start|>user\n{prompts[i]}<|im_end|>\n<|im_start|>assistant\n{dp}")
+                                flat_plans.append(dp)
+                            group_sizes.append(len(diverse_req_prompts))
+
+                        flat_outputs = self.llm.generate(flat_variants, sampling_params=sampling_params) if flat_variants else []
+
+                        # Regroup by prompt; vLLM preserves input order
+                        cursor = 0
+                        for n_variants in group_sizes:
+                            group_outs = flat_outputs[cursor:cursor + n_variants]
+                            group_plans = flat_plans[cursor:cursor + n_variants]
+                            cursor += n_variants
+
                             # Concatenate the plan with the completion and store token count
-                            path_responses.append([{"text": dp + out.outputs[0].text, "token_count": len(out.outputs[0].token_ids)} for dp, out in zip(diverse_req_prompts, outputs)])
-                            path_gen_tokens.append(sum(len(out.outputs[0].token_ids) for out in outputs))
-                            
+                            path_responses.append([{"text": dp + out.outputs[0].text, "token_count": len(out.outputs[0].token_ids)} for dp, out in zip(group_plans, group_outs)])
+                            path_gen_tokens.append(sum(len(out.outputs[0].token_ids) for out in group_outs))
+
                         # Select solutions from completions
                         chunk_data = self._process_final_selection(prompts, len(path_responses[0]), path_responses, group_size, max_tokens)
                         
