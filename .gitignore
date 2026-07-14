@@ -1,0 +1,5 @@
+prompt_scaffolding/.vllm_cache/
+prompt_scaffolding/sweep_logs/
+prompt_scaffolding/slurm-*.out
+prompt_scaffolding/slurm-*.err
+__pycache__/
