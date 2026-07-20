@@ -35,4 +35,8 @@ cd ~/CS497/prompt_scaffolding
 export SKIP_BASELINE=1
 export CONFIG_INDEX=${SLURM_ARRAY_TASK_ID}
 
+# Full rerun: all three pruning paths (rank/random/tourney) off the cached baseline,
+# with the fixed tourney survivor count and correct per-path token accounting.
+# (ONLY_PATHS unset -> main.py runs all three.)
+
 ./run_experiment.sh

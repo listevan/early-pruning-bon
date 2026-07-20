@@ -130,57 +130,105 @@ class ranker():
     def tourney_rank(self, user_prompts, rankees, group_size, target_count, max_retries=3):
         """
         Tournament style ranking for partial plans.
-        Groups candidates, ranks them, keeps the top half, and repeats until target_count is reached.
+        Groups candidates, ranks them, keeps the top half, and repeats until close to
+        target_count, then ranks the remaining survivors once to trim to EXACTLY
+        target_count.
+
+        The plain halving loop can only ever undershoot: a round takes every prompt with
+        more than target_count candidates down by ~half, so a set of 8 with target 5 drops
+        straight to 4, skipping the target and leaving the tourney path with fewer survivors
+        than the rank/random paths (which keep exactly number_choices). To avoid that, a
+        prompt stops halving as soon as one more full round WOULD cross below target_count;
+        the leftover (which is then in (target_count, 2*target_count]) is ranked in a single
+        final pass and cut to exactly target_count.
         """
         N = len(user_prompts)
         active_indices = [list(range(len(rankees[i]))) for i in range(N)]
         total_tokens = [0] * N
-        
-        while any(len(idx_list) > target_count for idx_list in active_indices):
+
+        def halved_size(n):
+            # survivors after one grouping round of `n` candidates in chunks of group_size
+            total = 0
+            for j in range(0, n, group_size):
+                clen = min(group_size, n - j)
+                total += (clen + 1) // 2 if clen > 1 else clen
+            return total
+
+        while True:
             batch_prompts = []
             batch_rankees = []
             chunk_metadata = []
-            next_active_indices = [[] for _ in range(N)]
-            
+            # Default: carry each prompt's set forward unchanged; only prompts we actively
+            # halve this round get rebuilt from their ranked chunks.
+            next_active_indices = [list(a) for a in active_indices]
+            pruned_any = False
+
             for i in range(N):
                 current_active = active_indices[i]
+                # Already at/below target, or one more round would undershoot -> leave for
+                # the final trim below rather than dropping below target_count here.
                 if len(current_active) <= target_count:
-                    next_active_indices[i].extend(current_active)
                     continue
-                
+                if halved_size(len(current_active)) < target_count:
+                    continue
+
+                next_active_indices[i] = []
                 for j in range(0, len(current_active), group_size):
                     chunk = current_active[j:j+group_size]
                     if len(chunk) > 1:
                         batch_prompts.append(user_prompts[i])
                         batch_rankees.append([rankees[i][idx] for idx in chunk])
                         chunk_metadata.append((i, chunk))
+                        pruned_any = True
                     else:
                         next_active_indices[i].extend(chunk)
-            
-            if not batch_prompts:
+
+            if not pruned_any:
                 break
-                
+
             chunk_final_indexes, _, chunk_tokens = self.rank(batch_prompts, batch_rankees, max_retries=max_retries)
-            
+
             for k, (i, chunk) in enumerate(chunk_metadata):
                 total_tokens[i] += chunk_tokens[k]
                 ranked_local_indices = chunk_final_indexes[k]
-                
+
                 # Keep top half (ceiling division to favor keeping more on odd sizes)
                 num_to_keep = (len(chunk) + 1) // 2
                 valid_local_indices = [idx for idx in ranked_local_indices if idx < len(chunk)]
-                
+
                 # Fallback if VLLM missed indices
                 if len(valid_local_indices) < num_to_keep:
                     missing = [idx for idx in range(len(chunk)) if idx not in valid_local_indices]
                     valid_local_indices.extend(missing)
-                
+
                 kept_local = valid_local_indices[:num_to_keep]
                 kept_global = [chunk[idx] for idx in kept_local]
                 next_active_indices[i].extend(kept_global)
-                
+
             active_indices = next_active_indices
 
-        # Truncate any overshoot to exactly match target_count
+        # Final trim: any prompt still above target_count gets its remaining survivors ranked
+        # in one pass and cut to exactly target_count, matching the rank path's keep semantics.
+        trim_prompts = []
+        trim_rankees = []
+        trim_meta = []
+        for i in range(N):
+            if len(active_indices[i]) > target_count:
+                trim_prompts.append(user_prompts[i])
+                trim_rankees.append([rankees[i][idx] for idx in active_indices[i]])
+                trim_meta.append(i)
+
+        if trim_prompts:
+            trim_indexes, _, trim_tokens = self.rank(trim_prompts, trim_rankees, max_retries=max_retries)
+            for k, i in enumerate(trim_meta):
+                total_tokens[i] += trim_tokens[k]
+                local = active_indices[i]
+                ranked_local = [idx for idx in trim_indexes[k] if idx < len(local)]
+                # rank() pads to a full permutation, but guard anyway
+                missing = [idx for idx in range(len(local)) if idx not in ranked_local]
+                ranked_local.extend(missing)
+                active_indices[i] = [local[idx] for idx in ranked_local[:target_count]]
+
+        # Any prompt at/below target_count is already correct; slice is a no-op for those.
         final_indexes = [indices[:target_count] for indices in active_indices]
         return final_indexes, total_tokens

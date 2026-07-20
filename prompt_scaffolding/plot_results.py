@@ -47,8 +47,11 @@ def parse_results(results_fn):
                 for pm in prompt_metrics
             )
 
-        # mean_tokens is already the per-prompt mean over chunks; summing gives the dataset total
+        # mean_tokens is already the per-prompt mean over chunks; summing gives the dataset total.
+        # The tourney selection curve is charged its own cost (tourney_mean_tokens); older files
+        # without that key fall back to mean_tokens.
         total_tokens = sum(pm["mean_tokens"] for pm in prompt_metrics)
+        tourney_tokens = sum(pm.get("tourney_mean_tokens", pm["mean_tokens"]) for pm in prompt_metrics)
 
         score_selected = score_sum("results")
         score_random   = score_sum("random_results")
@@ -57,6 +60,7 @@ def parse_results(results_fn):
 
         metrics[bon] = {
             "tokens": total_tokens,
+            "tourney_tokens": tourney_tokens,
             "acc": {
                 "Selected": float(score_selected) / num_examples,
                 "Random": float(score_random) / num_examples,
@@ -93,6 +97,10 @@ if __name__ == "__main__":
     # Setup categories for mapping
     categories = ["Selected", "Random", "Best", "Tourney"]
     colors = {"None": "blue", "Completion": "red"}
+
+    # The Tourney curve is charged its own token cost; all others use the shared total.
+    def xtok(m, b, cat):
+        return m[b]["tourney_tokens"] if cat == "Tourney" else m[b]["tokens"]
     
     # ====================================================
     # PLOT SET 1: ACCURACY VS TOTAL TOKENS USED (6 SUBPLOTS)
@@ -106,7 +114,7 @@ if __name__ == "__main__":
         
         # Plot None Strategy
         if bons_none:
-            x_n = [none_metrics[b]["tokens"] for b in bons_none]
+            x_n = [xtok(none_metrics, b, cat) for b in bons_none]
             y_n = [none_metrics[b]["acc"][cat] for b in bons_none]
             ax.scatter(x_n, y_n, color=colors["None"], label="None Strategy", zorder=3)
             ax.plot(x_n, y_n, color=colors["None"], linestyle="--", alpha=0.5)
@@ -115,7 +123,7 @@ if __name__ == "__main__":
                 
         # Plot Completion Strategy
         if bons_comp:
-            x_c = [comp_metrics[b]["tokens"] for b in bons_comp]
+            x_c = [xtok(comp_metrics, b, cat) for b in bons_comp]
             y_c = [comp_metrics[b]["acc"][cat] for b in bons_comp]
             ax.scatter(x_c, y_c, color=colors["Completion"], label="Completion Strategy", zorder=3)
             ax.plot(x_c, y_c, color=colors["Completion"], linestyle="-", alpha=0.5)
@@ -134,8 +142,8 @@ if __name__ == "__main__":
     ax_summary_none = axes_acc[4]
     summary_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
     if bons_none:
-        x_n = [none_metrics[b]["tokens"] for b in bons_none]
         for cat, col in zip(categories, summary_colors):
+            x_n = [xtok(none_metrics, b, cat) for b in bons_none]
             y_n = [none_metrics[b]["acc"][cat] for b in bons_none]
             ax_summary_none.plot(x_n, y_n, marker='o', label=cat, color=col)
     ax_summary_none.set_title("All Paths: None Strategy")
@@ -149,8 +157,8 @@ if __name__ == "__main__":
     # Subplot 5: Summary of all decision pathways for Completion Strategy
     ax_summary_comp = axes_acc[5]
     if bons_comp:
-        x_c = [comp_metrics[b]["tokens"] for b in bons_comp]
         for cat, col in zip(categories, summary_colors):
+            x_c = [xtok(comp_metrics, b, cat) for b in bons_comp]
             y_c = [comp_metrics[b]["acc"][cat] for b in bons_comp]
             ax_summary_comp.plot(x_c, y_c, marker='s', label=cat, color=col)
     ax_summary_comp.set_title("All Paths: Completion Strategy")

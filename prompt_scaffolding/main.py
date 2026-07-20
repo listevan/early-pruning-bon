@@ -11,6 +11,7 @@ import datetime
 import json
 import argparse
 import statistics
+import os
 
 seed = 42
 random.seed(seed)
@@ -106,6 +107,19 @@ if __name__ == '__main__':
 
     num_gpus = args.num_gpus
 
+    # Optional path gating: ONLY_PATHS="tourney" reruns just the tourney pruning path off the
+    # cache (rank/random completions are skipped). Defaults to all three.
+    ALL_PATHS = ["rank", "random", "tourney"]
+    only_paths_env = os.environ.get("ONLY_PATHS", "").strip()
+    if only_paths_env:
+        active_paths = [p.strip() for p in only_paths_env.split(",") if p.strip()]
+        invalid = [p for p in active_paths if p not in ALL_PATHS]
+        if invalid or not active_paths:
+            print(f"Error: ONLY_PATHS={only_paths_env!r} invalid; choose from {ALL_PATHS}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        active_paths = ALL_PATHS
+
     # initialize model
     model="Qwen/Qwen3-4B-Instruct-2507"
     # model = "Qwen/Qwen3-0.6B"
@@ -133,7 +147,7 @@ if __name__ == '__main__':
     prompts = [entry["question"] for entry in data]
 
     # generate responses
-    outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, max_plan_tokens=max_plan_tokens, strategy=strategy, prune_ratio=prune_ratio, previous_responses=previous_responses, group_size=group_size)
+    outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, max_plan_tokens=max_plan_tokens, strategy=strategy, prune_ratio=prune_ratio, previous_responses=previous_responses, group_size=group_size, active_paths=active_paths)
     
     # Intercept and save the raw baseline cache if in baseline mode
     raw_base = outputs.pop("raw_base_responses", None)
@@ -145,7 +159,7 @@ if __name__ == '__main__':
     # MAIN GRADING LOOP
     
     # Process only relevant output branches based on strategy choice
-    paths_to_process = ["baseline"] if strategy is None else ["rank", "random", "tourney"]
+    paths_to_process = ["baseline"] if strategy is None else active_paths
     
     for path in paths_to_process:
         path_outputs = {}
@@ -164,10 +178,13 @@ if __name__ == '__main__':
             agg_best_results = [[] for _ in range(num_examples)]
             agg_tourney_results = [[] for _ in range(num_examples)]
             prompt_token_usage = [[] for _ in range(num_examples)]
-            
+            tourney_token_usage = [[] for _ in range(num_examples)]
+
             # 1. Gather scores dynamically across all chunks for this BoN
             for chunk in chunks:
-                for i, (answer, all_answers, tourney_answer, tokens) in enumerate(zip(chunk["Final Answers"], chunk["All Answers"], chunk["Tourney Answers"], chunk["total_tokens"])):
+                # total_tokens costs the model-select path; the tourney curve must be charged
+                # its OWN cost (tourney_total_tokens), which differs in the selection component.
+                for i, (answer, all_answers, tourney_answer, tokens, tourney_tokens) in enumerate(zip(chunk["Final Answers"], chunk["All Answers"], chunk["Tourney Answers"], chunk["total_tokens"], chunk["tourney_total_tokens"])):
                     # Model final select score
                     score = 1 if data.score_answer(answer=answer, entry=data[i]) == 1 else 0
                     
@@ -189,8 +206,9 @@ if __name__ == '__main__':
                     agg_random_results[i].append({"answer": all_answers[random_select], "score": random_score})
                     agg_best_results[i].append({"answer": best_ans, "score": best_score})
                     agg_tourney_results[i].append({"answer": tourney_answer, "score": tourney_score})
-                    
+
                     prompt_token_usage[i].append(tokens)
+                    tourney_token_usage[i].append(tourney_tokens)
 
             # 2. Compile metrics into the uniform JSON layout requested
             final_metrics = {
@@ -205,17 +223,20 @@ if __name__ == '__main__':
             for i in range(num_examples):
                 scores = [res["score"] for res in agg_results[i]]
                 tokens = prompt_token_usage[i]
-                
+                tourney_tokens = tourney_token_usage[i]
+
                 mean_score = statistics.mean(scores)
                 total_score += mean_score
-                
+
                 mean_tokens = statistics.mean(tokens)
                 std_tokens = statistics.stdev(tokens) if len(tokens) > 1 else 0.0
-                
+                tourney_mean_tokens = statistics.mean(tourney_tokens) if tourney_tokens else mean_tokens
+
                 final_metrics["prompt_metrics"].append({
                     "mean_score": mean_score,
                     "mean_tokens": mean_tokens,
                     "std_tokens": std_tokens,
+                    "tourney_mean_tokens": tourney_mean_tokens,
                     "chunks_data": {
                         "results": agg_results[i],
                         "random_results": agg_random_results[i],

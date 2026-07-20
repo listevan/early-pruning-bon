@@ -46,6 +46,7 @@ import glob
 import json
 import math
 import os
+import re
 import sys
 from collections import defaultdict
 
@@ -155,6 +156,11 @@ def paired_contrast(a_scores, b_scores):
     # pair as independent, which they are not (211 pairs, but only 100 questions).
     # So it is anticonservative wherever deff > 1. This is the same test done with
     # the cluster-robust SE instead: a z-test on delta / SE_cluster.
+    # Use the finite-sample-corrected SE everywhere. It was previously computed and then
+    # ignored, so the "cluster-robust" interval was fractionally narrower than intended.
+    if se_cluster_fc == se_cluster_fc and se_cluster_fc > 0:
+        se_cluster = se_cluster_fc
+
     if se_cluster and se_cluster == se_cluster and se_cluster > 0:
         z = delta / se_cluster
         p_clustered = math.erfc(abs(z) / math.sqrt(2))   # two-sided normal
@@ -173,6 +179,131 @@ def paired_contrast(a_scores, b_scores):
     }
 
 
+def question_means(scores):
+    """Collapse {(question, chunk): 0|1} to {question: mean over that question's chunks}."""
+    agg = defaultdict(list)
+    for (q, _c), v in scores.items():
+        agg[q].append(v)
+    return {q: sum(v) / len(v) for q, v in agg.items()}
+
+
+def question_contrast(a_by_q, b_by_q):
+    """Paired comparison at the QUESTION level, one observation per question.
+
+    Needed for cross-N comparisons: N=8 and N=16 have different chunk counts, so
+    (question, chunk) keys do not line up and paired_contrast would silently drop
+    observations. Collapsing to a per-question mean first keeps the pairing honest.
+    Each question is its own cluster here, so there is no further clustering to do.
+    """
+    qs = sorted(set(a_by_q) & set(b_by_q))
+    if len(qs) < 2:
+        return None
+    diffs = [a_by_q[q] - b_by_q[q] for q in qs]
+    n = len(diffs)
+    delta = sum(diffs) / n
+    var = sum((d - delta) ** 2 for d in diffs) / (n - 1)
+    se = math.sqrt(var / n)
+    wins = sum(1 for d in diffs if d > 0)
+    losses = sum(1 for d in diffs if d < 0)
+    p = math.erfc(abs(delta / se) / math.sqrt(2)) if se > 0 else float("nan")
+    return {"n": n, "delta": delta, "se": se,
+            "ci": (delta - Z * se, delta + Z * se),
+            "wins": wins, "losses": losses,
+            "p": p, "p_sign": mcnemar_exact(wins, losses)}
+
+
+def noninferiority_p(delta, se, margin):
+    """One-sided test of H0: delta <= -margin ("materially worse than the comparator").
+
+    Rejecting H0 is what licenses a parity claim: "no more than `margin` worse".
+    A non-significant TWO-sided test does NOT establish equivalence -- with n=100
+    these intervals are wide enough to hide a real regression, so absence of a
+    significant difference is not evidence of no difference. `margin` is in
+    proportion units (0.05 = 5 percentage points).
+    """
+    if not se or se != se or se <= 0:
+        return float("nan")
+    z = (delta + margin) / se
+    return 0.5 * math.erfc(z / math.sqrt(2))          # upper-tail P(Z > z)
+
+
+def token_contrast(a_tokens, b_tokens):
+    """Paired per-question token difference WITH an interval.
+
+    The cost reduction is the most robust claim in this experiment, so it should
+    carry uncertainty like the accuracy numbers do, not just a point estimate.
+    """
+    qs = sorted(set(a_tokens) & set(b_tokens))
+    if len(qs) < 2:
+        return None
+    diffs = [a_tokens[q] - b_tokens[q] for q in qs]
+    n = len(diffs)
+    mean = sum(diffs) / n
+    var = sum((d - mean) ** 2 for d in diffs) / (n - 1)
+    se = math.sqrt(var / n)
+    base = sum(b_tokens[q] for q in qs) / n
+    lo, hi = mean - Z * se, mean + Z * se
+
+    # Percentage change is a RATIO, so its interval cannot be obtained by dividing the
+    # difference bounds by the denominator mean -- that treats the denominator as known.
+    # Delta method on r = A/B with the paired covariance retained.
+    A = sum(a_tokens[q] for q in qs) / n
+    B = base
+    va = sum((a_tokens[q] - A) ** 2 for q in qs) / (n - 1) / n
+    vb = sum((b_tokens[q] - B) ** 2 for q in qs) / (n - 1) / n
+    cov = sum((a_tokens[q] - A) * (b_tokens[q] - B) for q in qs) / (n - 1) / n
+    if B:
+        var_r = va / B ** 2 + (A ** 2) * vb / B ** 4 - 2 * A * cov / B ** 3
+        se_r = math.sqrt(max(0.0, var_r))
+        r = A / B
+        pct_ci = (100 * (r - 1 - Z * se_r), 100 * (r - 1 + Z * se_r))
+    else:
+        pct_ci = (float("nan"),) * 2
+    return {"delta": mean, "ci": (lo, hi), "base": base,
+            "pct": 100 * mean / base if base else float("nan"),
+            "pct_ci": pct_ci}
+
+
+def power_summary(se, ref):
+    """Minimum detectable effect at 80% power, and power to detect `ref`.
+
+    Both depend only on the SE, NOT on the observed effect. Post-hoc power computed
+    from the observed effect is just a monotone restatement of the p-value and says
+    nothing extra, so it is deliberately not reported. This matters here because a
+    null result at n=100 is usually a power failure, not evidence of no difference:
+    simulation puts power at ~23% for a true 5-point effect and ~62% at 10 points.
+    """
+    if not se or se != se or se <= 0:
+        return None
+    mde = (Z + 0.8416) * se                           # z_.975 + z_.80
+    power_ref = 0.5 * math.erfc((Z - ref / se) / math.sqrt(2))
+    return {"mde": mde, "power_ref": power_ref}
+
+
+def holm_survivors(pvals, alpha=0.05):
+    """Holm-Bonferroni step-down. Returns the set of indices significant at FWER alpha."""
+    order = sorted(range(len(pvals)), key=lambda i: pvals[i])
+    m = len(pvals)
+    out = set()
+    for rank, i in enumerate(order):
+        if pvals[i] <= alpha / (m - rank):
+            out.add(i)
+        else:
+            break                                     # step-down: stop at first failure
+    return out
+
+
+def bh_survivors(pvals, q=0.05):
+    """Benjamini-Hochberg step-up. Returns the set of indices significant at FDR q."""
+    order = sorted(range(len(pvals)), key=lambda i: pvals[i])
+    m = len(pvals)
+    kmax = 0
+    for rank, i in enumerate(order, 1):
+        if pvals[i] <= q * rank / m:
+            kmax = rank
+    return set(order[:kmax])
+
+
 def accuracy(scores):
     """Plain mean over observations."""
     return sum(scores.values()) / len(scores) if scores else float("nan")
@@ -185,7 +316,40 @@ def pp(x):
     return f"{100 * x:+.1f}" if x == x else "  n/a"
 
 
-def report_contrast(label, st):
+# Every clustered p-value computed during a run lands here so the grid can be
+# corrected for multiple comparisons at the end. Without this, sweeping 12 configs
+# x 5 N x several contrasts produces dozens of "significant" cells by chance alone.
+# Correcting across UNRELATED hypothesis families distorts inference: the
+# judge-vs-random effects are enormous (p ~ 1e-9) and, pooled in, they inflate m
+# and eat alpha that the borderline arm contrasts need. So each p-value carries a
+# family tag and correction runs WITHIN family.
+PVALS = []          # list of (context, family, label, p)
+
+
+_SEEN_BASELINE = set()
+
+
+def record_p(label, p, family):
+    if p != p:                                        # skip nan
+        return
+    # One baseline file is reused for all 12 configs, so baseline-only tests (e.g.
+    # "baseline N=8: judge - random") are byte-identical across configs. Counting them
+    # 12 times inflates m and injects exact-duplicate p-values into Holm/BH.
+    if label.startswith("baseline "):
+        if label in _SEEN_BASELINE:
+            return
+        _SEEN_BASELINE.add(label)
+    PVALS.append((CONTEXT[0], family, label, p))
+
+
+CONTEXT = [""]      # mutable holder for the current config label
+
+# (arm, N) -> list of per-config cells, for the cross-config summary. A single
+# config is one noisy draw; the average over the grid is the stable estimate.
+GRID = defaultdict(list)
+
+
+def report_contrast(label, st, margin=None, family="arm-contrast", ref=0.05):
     if st is None:
         print(f"{label:<34} (no overlapping observations)")
         return
@@ -196,6 +360,23 @@ def report_contrast(label, st):
           f"b/c {st['b']}/{st['c']}   "
           f"McNemar p = {st['p_mcnemar']:.3g}   "
           f"clustered p = {st['p_clustered']:.3g}")
+    record_p(label, st["p_clustered"], family)
+    pw = power_summary(st["se_cluster"], ref)
+    if pw:
+        print(f"{'':<34} power: MDE(80%) {100 * pw['mde']:.1f} pts   "
+              f"power to detect {100 * ref:.0f} pts = {100 * pw['power_ref']:.0f}%"
+              + ("   <- underpowered; a null here is NOT evidence of no effect"
+                 if pw["power_ref"] < 0.5 else ""))
+    if margin is not None:
+        p_ni = noninferiority_p(st["delta"], st["se_cluster"], margin)
+        lo = st["ci_cluster"][0]
+        verdict = "NON-INFERIOR" if lo > -margin else "cannot claim parity"
+        print(f"{'':<34} non-inferiority (margin {100 * margin:.0f} pts): "
+              f"lower bound {pp(lo)} -> {verdict}   one-sided p = {p_ni:.3g}")
+        # These are the tests that license the parity claim, so they MUST enter the
+        # correction. Leaving them out (as an earlier version did) meant the headline
+        # verdicts were the only uncorrected numbers in the report.
+        record_p(f"[NI] {label}", p_ni, "non-inferiority")
 
 
 def main():
@@ -212,9 +393,24 @@ def main():
                          "number below reproducible off the cluster.")
     ap.add_argument("--scores", metavar="IN.json",
                     help="read a scores extract written by --dump-scores instead of raw JSONs")
+    ap.add_argument("--margin", type=float, default=5.0, metavar="PTS",
+                    help="non-inferiority margin in percentage points (default 5). A parity "
+                         "claim needs the lower CI bound to clear -margin; a non-significant "
+                         "two-sided test does NOT establish equivalence.")
+    ap.add_argument("--grid", action="store_true",
+                    help="run every (plan, prune) config found in the directory and apply a "
+                         "multiple-comparison correction across the whole grid. Correcting "
+                         "within a single config misses the real multiplicity, which comes "
+                         "from sweeping many configs.")
     for arm in ARMS:
         ap.add_argument(f"--{arm}", help=f"explicit path to the {arm} JSON")
     args = ap.parse_args()
+
+    if args.grid:
+        if not args.directory:
+            ap.error("--grid needs a directory")
+        run_grid(args.directory, args.margin / 100.0, explicit_baseline=args.baseline)
+        return
 
     if args.scores:
         with open(args.scores) as f:
@@ -262,6 +458,11 @@ def main():
         print("commit this. then: python3 analysis.py --scores " + args.dump_scores)
         return
 
+    run_report(data, files, args.margin / 100.0)
+    return
+
+
+def run_report(data, files, margin):
     print("=" * 108)
     print("FILES")
     for arm, p in sorted(files.items()):
@@ -283,6 +484,10 @@ def main():
                 acc = accuracy(data[arm][n]["scores"]["results"])
                 tok = sum(data[arm][n]["tokens"].values()) / len(data[arm][n]["tokens"])
                 row += f"{100 * acc:>8.1f}% {tok:>6.0f}t"
+                GRID[(arm, n)].append({
+                    "config": CONTEXT[0], "acc": acc, "tokens": tok,
+                    "ceiling": accuracy(data[arm][n]["scores"]["best_results"]),
+                })
             else:
                 row += f"{'-':>16}"
         print(row)
@@ -298,7 +503,7 @@ def main():
                 continue
             s = data[arm][n]["scores"]
             st = paired_contrast(s["results"], s["random_results"])
-            report_contrast(f"{arm} N={n}: judge - random", st)
+            report_contrast(f"{arm} N={n}: judge - random", st, family="judge-vs-random")
         print()
 
     # ---- 3. oracle ceiling: is a correct answer even in the pool?
@@ -322,7 +527,11 @@ def main():
     # ---- 4. the arm-vs-arm contrasts the resume actually quotes
     print("=" * 108)
     print("4. ARM CONTRASTS, PER N   (the pruning claims)\n")
-    pairs = [("rank", "random"), ("rank", "baseline"), ("tourney", "baseline")]
+    # ("random", "baseline") was previously missing, so the worst-performing arm was never
+    # contrasted with baseline and any "all arm-vs-baseline cells" summary silently covered
+    # only rank+tourney -- an optimistic subset.
+    pairs = [("rank", "random"), ("rank", "baseline"),
+             ("tourney", "baseline"), ("random", "baseline")]
     for a, b in pairs:
         if a not in data or b not in data:
             continue
@@ -331,11 +540,16 @@ def main():
                 continue
             st = paired_contrast(data[a][n]["scores"]["results"],
                                  data[b][n]["scores"]["results"])
-            report_contrast(f"N={n:<3} {a} - {b}", st)
+            report_contrast(f"N={n:<3} {a} - {b}", st, margin=margin)
 
+            tk = token_contrast(data[a][n]["tokens"], data[b][n]["tokens"])
             ta = sum(data[a][n]["tokens"].values()) / len(data[a][n]["tokens"])
             tb = sum(data[b][n]["tokens"].values()) / len(data[b][n]["tokens"])
-            print(f"{'':<34} tokens {ta:.0f} vs {tb:.0f}  ({100 * (ta - tb) / tb:+.1f}%)")
+            if tk:
+                print(f"{'':<34} tokens {ta:.0f} vs {tb:.0f}  "
+                      f"({tk['pct']:+.1f}%, 95% CI [{tk['pct_ci'][0]:+.1f}%, {tk['pct_ci'][1]:+.1f}%])")
+            else:
+                print(f"{'':<34} tokens {ta:.0f} vs {tb:.0f}  ({100 * (ta - tb) / tb:+.1f}%)")
         print()
 
     # ---- 5. pooled across N
@@ -362,15 +576,203 @@ def main():
                 per_n.append(st_n["delta"])
 
         st = paired_contrast(pooled_a, pooled_b)
-        report_contrast(f"pooled {a} - {b} (chunk-wtd)", st)
+        report_contrast(f"pooled {a} - {b} (chunk-wtd)", st, family="pooled")
         if per_n:
             eq = sum(per_n) / len(per_n)
             print(f"{'':<34} equal-weight per N: d = {pp(eq)} pts "
                   f"(from {len(per_n)} cells: {', '.join(pp(d) for d in per_n)})")
         print()
 
+    # ---- 6. token-MATCHED contrasts: the comparison the cost claim actually needs
+    print("=" * 108)
+    print("6. TOKEN-MATCHED CONTRASTS   (equal BUDGET, not equal N)\n")
+    print("   Comparing arms at the same N compares unequal compute: a pruned arm at")
+    print("   N=16 can cost half of baseline N=16. The inference-scaling question is")
+    print("   'at a fixed budget, which wins?', so each pruned cell is matched to the")
+    print("   baseline N whose token cost is closest, and paired at the question level.\n")
+    if "baseline" in data:
+        base_tok = {n: sum(data["baseline"][n]["tokens"].values()) / len(data["baseline"][n]["tokens"])
+                    for n in data["baseline"]}
+        for arm in ARMS:
+            if arm == "baseline" or arm not in data:
+                continue
+            for n in ns:
+                if n not in data[arm]:
+                    continue
+                ta = sum(data[arm][n]["tokens"].values()) / len(data[arm][n]["tokens"])
+                nb = min(base_tok, key=lambda k: abs(base_tok[k] - ta))
+                st = question_contrast(question_means(data[arm][n]["scores"]["results"]),
+                                       question_means(data["baseline"][nb]["scores"]["results"]))
+                if st is None:
+                    continue
+                lab = f"{arm} N={n} vs baseline N={nb}"
+                gap = 100 * (ta - base_tok[nb]) / base_tok[nb]
+                print(f"{lab:<34} d = {pp(st['delta'])} pts   "
+                      f"95% CI [{pp(st['ci'][0])}, {pp(st['ci'][1])}]   "
+                      f"win/loss {st['wins']}/{st['losses']}   "
+                      f"p = {st['p']:.3g}   sign p = {st['p_sign']:.3g}")
+                print(f"{'':<34} tokens {ta:.0f} vs {base_tok[nb]:.0f} "
+                      f"({gap:+.1f}% budget mismatch)")
+                p_ni = noninferiority_p(st["delta"], st["se"], margin)
+                verdict = "NON-INFERIOR" if st["ci"][0] > -margin else "cannot claim parity"
+                print(f"{'':<34} non-inferiority (margin {100 * margin:.0f} pts): "
+                      f"lower bound {pp(st['ci'][0])} -> {verdict}   one-sided p = {p_ni:.3g}")
+                record_p(f"[NI] {lab}", p_ni, "non-inferiority")
+                if abs(gap) > 15:
+                    print(f"{'':<34} WARNING: {gap:+.0f}% budget mismatch -- this cell is NOT "
+                          f"token-matched; the verdict above is not a matched-budget result")
+                pw = power_summary(st["se"], margin)
+                if pw:
+                    print(f"{'':<34} power: MDE(80%) {100 * pw['mde']:.1f} pts   "
+                          f"power to detect {100 * margin:.0f} pts = {100 * pw['power_ref']:.0f}%"
+                          + ("   <- underpowered" if pw["power_ref"] < 0.5 else ""))
+                record_p(lab, st["p"], "token-matched")
+            print()
+    else:
+        print("   (no baseline arm loaded -- cannot token-match)\n")
+
     print("=" * 108)
     print("Clusters are questions. deff > 1 means the naive interval was too narrow.")
+
+
+def run_grid(directory, margin, explicit_baseline=None):
+    """Run every (plan, prune) config in `directory`, then correct across all of them."""
+    combos = set()
+    for path in glob.glob(os.path.join(directory, "*_bon_*.json")):
+        m = re.search(r"_plan_(\d+)_prune_([\d.]+)\.json$", os.path.basename(path))
+        if m and "_baseline_" not in os.path.basename(path):
+            combos.add((int(m.group(1)), m.group(2)))
+
+    if not combos:
+        print("no plan/prune configs found", file=sys.stderr)
+        return
+
+    for plan, prune in sorted(combos):
+        files = discover(directory, str(plan), prune)
+        # The baseline filename carries the argparse default (prune_2, an int) while
+        # strategy files carry the float (prune_2.0), so discover() cannot match both.
+        if explicit_baseline:
+            files["baseline"] = explicit_baseline
+        elif "baseline" not in files:
+            cands = sorted(glob.glob(os.path.join(directory, "*_baseline_bon_*.json")))
+            if cands:
+                files["baseline"] = cands[-1]
+        if not files:
+            continue
+        CONTEXT[0] = f"plan={plan},prune={prune}"
+        print()
+        print("#" * 108)
+        print(f"# CONFIG  plan={plan}  prune={prune}")
+        print("#" * 108)
+        data = {arm: load_arm(p) for arm, p in files.items()}
+        run_report(data, files, margin)
+
+    report_grid_summary(margin)
+    report_multiplicity()
+
+
+def report_multiplicity():
+    """Correct every p-value collected across the run for multiple comparisons.
+
+    A grid of 12 configs x 5 N x several contrasts is hundreds of tests; at alpha
+    = 0.05 you expect ~1 in 20 to look significant with nothing real behind it.
+    Holm controls the chance of ANY false positive (strict); Benjamini-Hochberg
+    controls the expected FRACTION of false positives among the rejections (the
+    usual choice for exploratory sweeps).
+    """
+    if not PVALS:
+        return
+
+    print()
+    print("=" * 108)
+    print("7. MULTIPLE COMPARISONS   (corrected WITHIN each hypothesis family)\n")
+    print("   Families are corrected separately. Pooling them would let the enormous")
+    print("   judge-vs-random effects (p ~ 1e-9) inflate m and consume the alpha that")
+    print("   the borderline arm contrasts actually need.\n")
+
+    fams = defaultdict(list)
+    for i, (ctx, fam, lab, p) in enumerate(PVALS):
+        fams[fam].append(i)
+
+    print(f"   {'family':<18}{'tests':>7}{'p<.05':>7}{'by chance':>11}{'Holm':>7}{'BH':>6}")
+    survivors = {}
+    for fam, idxs in sorted(fams.items()):
+        ps = [PVALS[i][3] for i in idxs]
+        m = len(ps)
+        raw = sum(1 for p in ps if p < 0.05)
+        holm = holm_survivors(ps)
+        bh = bh_survivors(ps)
+        survivors[fam] = ({idxs[j] for j in holm}, {idxs[j] for j in bh})
+        print(f"   {fam:<18}{m:>7}{raw:>7}{0.05 * m:>11.0f}{len(holm):>7}{len(bh):>6}")
+
+    print()
+    all_bh = set().union(*[s[1] for s in survivors.values()]) if survivors else set()
+    all_holm = set().union(*[s[0] for s in survivors.values()]) if survivors else set()
+    lost = [i for i, (_c, _f, _l, p) in enumerate(PVALS) if p < 0.05 and i not in all_bh]
+    if lost:
+        print(f"   {len(lost)} nominally-significant results do NOT survive BH within their family.")
+        print("   Do not cite these on their own:")
+        for i in sorted(lost, key=lambda j: PVALS[j][3])[:20]:
+            ctx, fam, lab, p = PVALS[i]
+            print(f"     p={p:<9.3g} [{fam}] {ctx:<20} {lab}")
+        if len(lost) > 20:
+            print(f"     ... and {len(lost) - 20} more")
+    else:
+        print("   every nominally-significant result survives BH within its family.")
+    print()
+    print(f"   {len(all_holm)} results survive the strict Holm correction; these are the safe ones to quote.")
+
+
+def report_grid_summary(margin):
+    """Aggregate across configs. One config is a single noisy draw at n=100; the
+    mean over the grid is the stable estimate, and quoting the best cell instead
+    is a winner's-curse overestimate (the max of ~60 noisy cells)."""
+    if not GRID:
+        return
+    ns = sorted({n for (_a, n) in GRID})
+    print()
+    print("=" * 108)
+    print("8. CROSS-CONFIG SUMMARY   (the stable estimate: average over the grid)\n")
+    print("   A single config is one noisy draw. Quoting the best cell overstates the")
+    print("   effect because it is the maximum of many noisy cells. These are means.\n")
+    print(f"   {'arm':<10}{'N':>4}{'configs':>9}{'acc mean':>10}{'min':>7}{'max':>7}"
+          f"{'tokens':>10}{'vs base':>9}")
+    for n in ns:
+        base = GRID.get(("baseline", n), [])
+        base_acc = sum(c["acc"] for c in base) / len(base) if base else float("nan")
+        base_tok = sum(c["tokens"] for c in base) / len(base) if base else float("nan")
+        for arm in ARMS:
+            cells = GRID.get((arm, n), [])
+            if not cells:
+                continue
+            accs = [c["acc"] for c in cells]
+            toks = [c["tokens"] for c in cells]
+            mean_acc = sum(accs) / len(accs)
+            mean_tok = sum(toks) / len(toks)
+            sav = (100 * (mean_tok - base_tok) / base_tok) if base_tok == base_tok and base_tok else float("nan")
+            print(f"   {arm:<10}{n:>4}{len(cells):>9}{100 * mean_acc:>9.1f}%"
+                  f"{100 * min(accs):>7.0f}{100 * max(accs):>7.0f}"
+                  f"{mean_tok:>10,.0f}{sav:>8.1f}%")
+        print()
+
+    # ---- the ceiling collapse: the binding constraint on the whole approach
+    print("   ORACLE CEILING COLLAPSE   (what pruning costs you before the judge acts)\n")
+    print("   Pruning discards candidates, so a correct answer may never reach the judge.")
+    print("   A smaller judge gap on a pruned arm is less headroom, not better selection.\n")
+    print(f"   {'arm':<10}{'N':>4}{'ceiling':>10}{'selected':>10}{'judge gap':>11}{'ceiling vs base':>17}")
+    for n in ns:
+        base = GRID.get(("baseline", n), [])
+        base_ceil = sum(c["ceiling"] for c in base) / len(base) if base else float("nan")
+        for arm in ARMS:
+            cells = GRID.get((arm, n), [])
+            if not cells:
+                continue
+            ceil = sum(c["ceiling"] for c in cells) / len(cells)
+            sel = sum(c["acc"] for c in cells) / len(cells)
+            delta_ceil = 100 * (ceil - base_ceil) if base_ceil == base_ceil else float("nan")
+            print(f"   {arm:<10}{n:>4}{100 * ceil:>9.1f}%{100 * sel:>9.1f}%"
+                  f"{100 * (ceil - sel):>10.1f}p{delta_ceil:>16.1f}p")
+        print()
 
 
 if __name__ == "__main__":

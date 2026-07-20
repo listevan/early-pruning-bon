@@ -3,3 +3,6 @@ prompt_scaffolding/sweep_logs/
 prompt_scaffolding/slurm-*.out
 prompt_scaffolding/slurm-*.err
 __pycache__/
+
+# superseded plots from the pre-fix tourney run (see RESULTS.md 7.6)
+prompt_scaffolding/archive/broken_tourney_preFix/

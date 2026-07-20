@@ -267,7 +267,7 @@ class Model:
 
         return final_selections, final_reasons, total_tokens
 
-    def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None, group_size=4):
+    def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None, group_size=4, active_paths=("rank", "random", "tourney")):
         organized_outputs = {
             "baseline": {},
             "rank": {},
@@ -301,7 +301,7 @@ class Model:
             if strategy is None:
                 organized_outputs["baseline"][bon] = {"chunks": []}
             else:
-                for path in ["rank", "random", "tourney"]:
+                for path in active_paths:
                     organized_outputs[path][bon] = {"chunks": []}
 
             # Determine the chunks for this BoN
@@ -339,7 +339,11 @@ class Model:
                         group_size=group_size
                     )
                     
-                    for path in ["rank", "random", "tourney"]:
+                    # NOTE: strategy.generate_prompts above still computes all three prunings
+                    # (rank/random/tourney) so the RNG state feeding tourney_rank is identical to
+                    # a full run; we only skip the expensive COMPLETION generation for inactive
+                    # paths. This makes a tourney-only rerun bit-for-bit match the full-run tourney.
+                    for path in active_paths:
                         diverse_prompts = strat_out["paths"][path]["prompts"]
                         path_selection_tokens = strat_out["paths"][path]["tokens"]
                         base_tokens = strat_out["base_tokens"]
