@@ -668,7 +668,133 @@ def run_grid(directory, margin, explicit_baseline=None):
         run_report(data, files, margin)
 
     report_grid_summary(margin)
+    report_iso_token()
     report_multiplicity()
+
+
+# Fraction of BASELINE generated tokens emitted after the first "</answer>".
+#
+# The baseline and the pruned arms are not billed on the same basis. Baseline drafts
+# come from Model.generate_responses (baseline draft branch) via llm.chat with NO stop
+# string; arm completions come from Model.generate_responses (completion stage) via
+# llm.generate with stop=["</answer>"], include_stop_str_in_output=True. So the baseline
+# is charged for everything it emits after the closing tag and the arms are not, and the
+# reported token saving is inflated by exactly that tail.
+#
+# Measured with the Qwen/Qwen3-4B-Instruct-2507 tokenizer over all 6,000 drafts in
+# baseline_cache.json, splitting each draft at its FIRST "</answer>" (where `stop` would
+# have fired): 26.25% of generated tokens fall after it; 0/6,000 drafts lack the tag.
+# Per-N: 25.76 / 26.25 / 26.29 / 26.29 / 26.29% at N = 1/2/4/8/16.
+#
+# The arms have no equivalent tail to strip: every draft whose first "</answer>" falls
+# before token 1000 is entirely shorter than 1000 tokens, so the post-tag tokens
+# surviving inside a truncated plan prefix number exactly 0 at plan 1000/2500/4000.
+# Correcting the baseline alone is therefore exact, not a concession to either side.
+#
+# Hardcoded because recomputing it needs the 115 MB cache and the tokenizer, neither of
+# which this file depends on. Re-derive with scripts/ or the recipe in RESULTS.md 5.0.1.
+BASELINE_STOP_TAIL = 0.2625
+BASELINE_DRAFT_TOKENS = 8247.10      # mean token_count over baseline_cache.json
+
+
+def _interp_log(x, xs, ys):
+    """Piecewise-linear interpolation of ys over log(xs), clamped outside the range."""
+    lx = math.log(x)
+    lxs = [math.log(v) for v in xs]
+    if lx <= lxs[0]:
+        return ys[0]
+    if lx >= lxs[-1]:
+        return ys[-1]
+    for i in range(len(lxs) - 1):
+        if lxs[i] <= lx <= lxs[i + 1]:
+            w = (lx - lxs[i]) / (lxs[i + 1] - lxs[i])
+            return ys[i] + w * (ys[i + 1] - ys[i])
+    return ys[-1]
+
+
+def report_iso_token():
+    """Iso-token contrast: interpolate the baseline curve to each cell's ACTUAL spend.
+
+    Section 6 matches each pruned cell to the baseline N of nearest token cost, which
+    leaves budget mismatches spanning -31% to +49% -- 82 of 180 cells exceed 15% and get
+    an inline warning. Interpolating the baseline's accuracy-vs-token curve removes that
+    slack: every cell is compared against the baseline accuracy at its own budget.
+
+    Reported on two bases. The RAW basis uses baseline mean_tokens as stored. The
+    STOP-CORRECTED basis scales only the baseline's generation component (drafts) by
+    1 - BASELINE_STOP_TAIL and leaves the judge component alone, which is the
+    apples-to-apples budget. The two give opposite verdicts, which is the point.
+
+    No p-values are recorded here: this is a descriptive re-basing of section 6, and
+    entering it into the correction would double-count the same cells.
+    """
+    if not GRID:
+        return
+    ns = sorted({n for (_a, n) in GRID})
+    base = {n: GRID.get(("baseline", n), []) for n in ns}
+    if not all(base[n] for n in ns):
+        return
+
+    base_acc = {n: sum(c["acc"] for c in base[n]) / len(base[n]) for n in ns}
+    base_tok = {n: sum(c["tokens"] for c in base[n]) / len(base[n]) for n in ns}
+    corr_tok = {}
+    for n in ns:
+        gen = BASELINE_DRAFT_TOKENS * n
+        judge = base_tok[n] - gen
+        corr_tok[n] = (1 - BASELINE_STOP_TAIL) * gen + judge
+
+    print()
+    print("=" * 108)
+    print("9. ISO-TOKEN CONTRASTS   (baseline curve INTERPOLATED to each cell's actual spend)\n")
+    print("   Section 6 snaps each cell to the nearest baseline N, leaving budget gaps up to")
+    print("   +49%. Here the baseline accuracy-vs-token curve is log-interpolated to the exact")
+    print("   budget each cell spent, so there is no mismatch left to warn about.\n")
+    print(f"   baseline stop-tail correction: {100 * BASELINE_STOP_TAIL:.2f}% of generated tokens")
+    print("   fall after the first </answer>, which the baseline is charged for and the arms")
+    print("   are not (no stop string on the baseline; stop=['</answer>'] on the arms).\n")
+    print(f"   {'N':>4}{'baseline acc':>14}{'tokens raw':>13}{'tokens corrected':>18}")
+    for n in ns:
+        print(f"   {n:>4}{100 * base_acc[n]:>13.1f}%{base_tok[n]:>13,.0f}{corr_tok[n]:>18,.0f}")
+
+    xs = [base_tok[n] for n in ns]
+    xs_c = [corr_tok[n] for n in ns]
+    ys = [base_acc[n] for n in ns]
+
+    for name, curve in (("RAW baseline", xs), ("STOP-CORRECTED baseline", xs_c)):
+        deltas = []
+        by_plan = defaultdict(list)
+        for (arm, n), cells in GRID.items():
+            if arm == "baseline":
+                continue
+            for c in cells:
+                d = c["acc"] - _interp_log(c["tokens"], curve, ys)
+                deltas.append(d)
+                m = re.search(r"plan=(\d+)", c["config"] or "")
+                if m:
+                    by_plan[int(m.group(1))].append(d)
+        if not deltas:
+            continue
+        deltas.sort()
+        mid = len(deltas) // 2
+        median = deltas[mid] if len(deltas) % 2 else (deltas[mid - 1] + deltas[mid]) / 2
+        # A handful of cells land exactly on the baseline curve. Counting them by sign
+        # would make the tally depend on floating-point noise, so ties are reported.
+        tol = 1e-9
+        pos = sum(1 for d in deltas if d > tol)
+        neg = sum(1 for d in deltas if d < -tol)
+        tie = len(deltas) - pos - neg
+        print(f"\n   {name}: arm accuracy minus interpolated baseline accuracy")
+        print(f"     over {len(deltas)} equal-N cells:  mean {100 * sum(deltas) / len(deltas):+.2f} pts   "
+              f"median {100 * median:+.2f} pts   positive {pos}/{len(deltas)}"
+              + (f"   (negative {neg}, exact ties {tie})" if tie else f"   (negative {neg})"))
+        for plan in sorted(by_plan):
+            v = by_plan[plan]
+            print(f"       plan={plan:<5} mean {100 * sum(v) / len(v):+.2f} pts   ({len(v)} cells)")
+
+    print("\n   Read together: against the raw baseline the pruned arms are roughly break-even at")
+    print("   equal budget; against the stop-corrected baseline they are negative at every plan")
+    print("   level. The apparent iso-token parity depends on charging the baseline for tokens")
+    print("   the arms never emit.")
 
 
 def report_multiplicity():

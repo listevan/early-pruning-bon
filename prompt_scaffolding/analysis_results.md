@@ -1,6 +1,6 @@
 # Analysis Results
 
-Generated 2026-07-19 19:04 by `analysis.py --grid` over SLURM array `20276744`.
+Generated 2026-07-19 19:58 by `analysis.py --grid` over SLURM array `20276744`.
 
 - **Grid:** `max_plan_tokens` ∈ {1000, 2500, 4000} × `prune_ratio` ∈ {1.5, 2, 3, 4} = 12 configs × 3 arms + shared baseline.
 - **Data:** countdown, 100 questions, best-of-N ∈ {1,2,4,8,16}, Qwen3-4B-Instruct-2507.
@@ -12,6 +12,11 @@ Generated 2026-07-19 19:04 by `analysis.py --grid` over SLURM array `20276744`.
 realized saving is much smaller, because each pruned cell is matched to a *smaller* baseline N.
 Quoting the token number from §4 and the parity verdict from §6 combines two different comparisons.
 
+**The §4 token reduction is also not apples-to-apples.** The baseline is generated with no stop string and the
+arms stop at `</answer>`, so the baseline is charged for the 26.25% of its generated tokens that follow the
+closing tag. Corrected, the equal-N reduction is **38–45%** at bon ≥ 2, not 50–60%. §9 reports the iso-token
+contrast on both bases; the verdict flips sign between them.
+
 ## Method notes
 
 - Paired tests, clustered by question, finite-sample corrected.
@@ -19,6 +24,9 @@ Quoting the token number from §4 and the parity verdict from §6 combines two d
 - §7 corrects within families and includes the non-inferiority tests.
 - Cells with >15% budget mismatch are flagged inline in §6; they are not matched-budget results.
 - Baseline-only tests are recorded once, not once per config.
+- §9 (new) re-bases §6 by *interpolating* the baseline accuracy-vs-token curve to each cell's actual
+  spend, on both the raw and the stop-corrected baseline. It records no p-values (it re-describes the
+  same cells as §6).
 
 ```
 
@@ -3413,6 +3421,41 @@ Clusters are questions. deff > 1 means the naive interval was too narrow.
    random      16     70.4%     65.2%       5.2p            -8.6p
    tourney     16     71.7%     66.6%       5.1p            -7.3p
 
+
+============================================================================================================
+9. ISO-TOKEN CONTRASTS   (baseline curve INTERPOLATED to each cell's actual spend)
+
+   Section 6 snaps each cell to the nearest baseline N, leaving budget gaps up to
+   +49%. Here the baseline accuracy-vs-token curve is log-interpolated to the exact
+   budget each cell spent, so there is no mismatch left to warn about.
+
+   baseline stop-tail correction: 26.25% of generated tokens
+   fall after the first </answer>, which the baseline is charged for and the arms
+   are not (no stop string on the baseline; stop=['</answer>'] on the arms).
+
+      N  baseline acc   tokens raw  tokens corrected
+      1         47.5%        8,417             6,253
+      2         54.5%       17,179            12,849
+      4         63.0%       34,192            25,532
+      8         69.5%       67,682            50,363
+     16         70.0%      133,659            99,021
+
+   RAW baseline: arm accuracy minus interpolated baseline accuracy
+     over 180 equal-N cells:  mean +0.36 pts   median +0.38 pts   positive 99/180   (negative 79, exact ties 2)
+       plan=1000  mean -0.31 pts   (60 cells)
+       plan=2500  mean +1.15 pts   (60 cells)
+       plan=4000  mean +0.25 pts   (60 cells)
+
+   STOP-CORRECTED baseline: arm accuracy minus interpolated baseline accuracy
+     over 180 equal-N cells:  mean -1.62 pts   median -1.60 pts   positive 53/180   (negative 127)
+       plan=1000  mean -2.21 pts   (60 cells)
+       plan=2500  mean -0.92 pts   (60 cells)
+       plan=4000  mean -1.73 pts   (60 cells)
+
+   Read together: against the raw baseline the pruned arms are roughly break-even at
+   equal budget; against the stop-corrected baseline they are negative at every plan
+   level. The apparent iso-token parity depends on charging the baseline for tokens
+   the arms never emit.
 
 ============================================================================================================
 7. MULTIPLE COMPARISONS   (corrected WITHIN each hypothesis family)
