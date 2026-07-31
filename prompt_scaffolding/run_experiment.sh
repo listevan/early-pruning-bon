@@ -10,6 +10,24 @@ export VLLM_LOGGING_LEVEL=ERROR
 read -ra MAX_PLAN_TOKENS <<< "${MAX_PLAN_TOKENS:-1000 2500 4000}"
 read -ra PRUNE_RATIOS    <<< "${PRUNE_RATIOS:-1.5 2 3 4}"
 
+# REGEN=1 turns on main.py's regenerate-back-to-n staircase for the sweep (default off,
+# preserving the original prune-only behaviour). Baseline generation ignores it.
+REGEN=${REGEN:-0}
+REGEN_FLAG=""
+[[ "$REGEN" == "1" ]] && REGEN_FLAG="--regen"
+
+# Optional: override the example count for both baseline and sweep. Empty -> main.py's
+# own default (30). The shared 100-prompt baseline_cache.json is sliced to this count
+# in-memory by main.py, so a smaller run reuses the existing cache untouched.
+NUM_EXAMPLES=${NUM_EXAMPLES:-}
+NUM_EXAMPLES_FLAG=""
+[[ -n "$NUM_EXAMPLES" ]] && NUM_EXAMPLES_FLAG="--num_examples $NUM_EXAMPLES"
+
+# Which sweep program to run: main.py (best-of-N, bon) or main_diverse.py (best-of-k,
+# bok). main_diverse.py forces --diverse/--regen internally, so REGEN above is ignored
+# for it. Baseline generation (Phase 1) always uses main.py regardless.
+MAIN=${MAIN:-main.py}
+
 # Data parallelism, not tensor parallelism: each GPU hosts its own single-GPU vLLM
 # instance (TP=1, no cross-GPU all-reduce) and works through its own slice of the
 # sweep. Qwen3-4B is ~8GB in bf16 and fits on one A40 (48GB) with room for KV cache.
@@ -48,7 +66,7 @@ echo "======================================================"
 if [[ "${SKIP_BASELINE:-0}" == "1" && -f "baseline_cache.json" ]]; then
     echo "SKIP_BASELINE=1: reusing existing baseline_cache.json"
 else
-    $UV main.py --num_gpus "$BASELINE_GPUS" --baseline > "$LOG_DIR/baseline.log" 2>&1
+    $UV main.py --num_gpus "$BASELINE_GPUS" --baseline $NUM_EXAMPLES_FLAG > "$LOG_DIR/baseline.log" 2>&1
 
     if [[ ! -f "baseline_cache.json" ]]; then
         echo "Error: Baseline cache (baseline_cache.json) failed to generate."
@@ -94,23 +112,26 @@ echo "${#CONFIGS[@]} config(s) across $NUM_GPUS GPU(s); logs in $LOG_DIR/"
 echo ""
 
 # Worker g takes configs g, g+NUM_GPUS, g+2*NUM_GPUS, ... and runs them back to back,
-# pinned to GPU g. Output filenames embed mpt/prune, so concurrent workers never collide.
+# pinned to GPU g. Log names embed the program (bon vs bok) as well as mpt/prune, so a
+# bon task and a bok task at the same config never clobber each other's log.
+MAIN_TAG="${MAIN%.py}"
 run_gpu_worker() {
     local gpu=$1
     local i mpt pr log
     mkdir -p "$CACHE_ROOT/gpu${gpu}"
     for (( i=gpu; i<${#CONFIGS[@]}; i+=NUM_GPUS )); do
         read -r mpt pr <<< "${CONFIGS[$i]}"
-        log="$LOG_DIR/mpt${mpt}_prune${pr}.log"
+        log="$LOG_DIR/${MAIN_TAG}_mpt${mpt}_prune${pr}.log"
         echo "[gpu $gpu] START max_plan_tokens=$mpt prune_ratio=$pr"
 
         if CUDA_VISIBLE_DEVICES="$gpu" \
            VLLM_CACHE_ROOT="$CACHE_ROOT/gpu${gpu}" \
-           $UV main.py \
+           $UV "$MAIN" \
                 --num_gpus 1 \
                 --cache_fn "baseline_cache.json" \
                 --max_plan_tokens "$mpt" \
-                --prune_ratio "$pr" > "$log" 2>&1; then
+                --prune_ratio "$pr" \
+                $REGEN_FLAG $NUM_EXAMPLES_FLAG > "$log" 2>&1; then
             grep "Saving format fixed JSON to:" "$log" | awk -F': ' -v g="$gpu" '{print "[gpu " g "] SAVED " $2}'
             echo "[gpu $gpu] DONE  max_plan_tokens=$mpt prune_ratio=$pr"
         else

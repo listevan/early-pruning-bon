@@ -1,5 +1,5 @@
 from model.strategies import HypothesisStrategy, PlanStrategy, ConceptStrategy, ReasoningStructureStrategy, CountdownStrategy, UserStrategy
-from model.utils import extract_answer
+from model.utils import extract_answer, even_top_allocation, draft_messages
 from model.rank import ranker
 
 from vllm import LLM, SamplingParams
@@ -226,10 +226,12 @@ class Model:
             for j, request_output in enumerate(outputs):
                 original_i = pending_indices[j]
                 text = request_output.outputs[0].text
-                
-                # Accumulate tokens across retries
+
+                # Accumulate SAMPLED tokens across retries. This judge call runs at every bon
+                # including bon=1 (there is no single-candidate short-circuit), so its reply
+                # is charged at every point on the curve.
                 total_tokens[original_i] += len(request_output.outputs[0].token_ids)
-                
+
                 # Try to isolate the results block
                 res_match = re.search(r'<results>\s*(.*?)\s*</results>', text, re.DOTALL)
                 results_text = res_match.group(1).strip() if res_match else text
@@ -267,7 +269,7 @@ class Model:
 
         return final_selections, final_reasons, total_tokens
 
-    def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None, group_size=4, active_paths=("rank", "random", "tourney")):
+    def generate_responses(self, prompts, best_of_ns, temperature, max_tokens=16384, max_plan_tokens=500, prune_ratio=1, strategy=None, previous_responses=None, group_size=4, active_paths=("rank", "random", "tourney"), regen=False, diverse=False):
         organized_outputs = {
             "baseline": {},
             "rank": {},
@@ -286,15 +288,15 @@ class Model:
                 # Baseline generation
                 sampling_params = SamplingParams(n=max_bon, temperature=temperature, top_p=1, max_tokens=max_tokens, seed=self.seed)
                 print("Generating Baseline Max BoN Solutions", file=sys.stderr)
-                outputs = self.llm.chat([[{"role": "user", "content": f"{prompt}\n\nFirst, write out your step-by-step thoughts on how to solve this in plain text without using any tags. Then, provide your final answer strictly inside <answer></answer> tags."}] for prompt in prompts], sampling_params=sampling_params)
-                base_max_responses = [[{"text": out.text, "token_count": len(out.token_ids)} for out in req.outputs] for req in outputs]
+                outputs = self.llm.chat([draft_messages(prompt) for prompt in prompts], sampling_params=sampling_params)
+                base_max_responses = self._strip_drafts(outputs)
             else:
                 # Completion strategy initial plan generation
                 plan_sampling = SamplingParams(n=max_bon, temperature=temperature, top_p=0.95, max_tokens=max_plan_tokens, seed=self.seed)
                 print("Generating Completion Initial Response", file=sys.stderr)
-                outputs = self.llm.chat([[{"role": "user", "content": f"{prompt}\n\nFirst, write out your step-by-step thoughts on how to solve this in plain text without using any tags. Then, provide your final answer strictly inside <answer></answer> tags."}] for prompt in prompts], sampling_params=plan_sampling)
-                base_max_responses = [[{"text": out.text, "token_count": len(out.token_ids)} for out in req.outputs] for req in outputs]
-                
+                outputs = self.llm.chat([draft_messages(prompt) for prompt in prompts], sampling_params=plan_sampling)
+                base_max_responses = self._strip_drafts(outputs)
+
         # 2. Iterate through each BoN
         for bon in sorted(best_of_ns, reverse=True):
             # Initialize storage
@@ -330,13 +332,16 @@ class Model:
                     chunk_data = self._process_final_selection(prompts, bon, current_chunk, group_size, max_tokens)
                     organized_outputs["baseline"][bon]["chunks"].append(chunk_data)
                 else:
-                    # Pruning Strategy: Prune plans, finish generation, then select
+                    # Pruning Strategy: Prune plans, finish generation, then select.
+                    # diverse=True prunes to k UNIQUE plans (LLM-clustered distinct
+                    # approaches) instead of the top-k by rank -- the best-of-k arm.
                     strat_out = strategy.generate_prompts(
                         prompts, bon, temperature,
                         max_plan_tokens=max_plan_tokens,
                         prune_ratio=prune_ratio,
                         previous_responses=current_chunk,
-                        group_size=group_size
+                        group_size=group_size,
+                        diverse=diverse
                     )
                     
                     # NOTE: strategy.generate_prompts above still computes all three prunings
@@ -350,34 +355,62 @@ class Model:
                         
                         path_responses = []
                         path_gen_tokens = []
-                        
-                        # Continue final answer generation
-                        sampling_params = SamplingParams(temperature=temperature, top_p=0.95, stop=["</answer>"], include_stop_str_in_output=True, max_tokens=max_tokens, seed=self.seed)
-                        
+
+                        # Continue final answer generation. Sampling params are built PER PLAN
+                        # below so a single plan can be asked for several completions (n>1)
+                        # when regen is on; kwargs are shared, only n differs.
+                        sp_kwargs = dict(temperature=temperature, top_p=0.95, stop=["</answer>"], include_stop_str_in_output=True, max_tokens=max_tokens, seed=self.seed)
+
                         # Flatten every (prompt, plan) pair into ONE batched call. One call per
                         # prompt starves vLLM: number_choices is 1 at bon<=2, so each call would
                         # decode a single 16k-token sequence at a time, 100 times, per path.
+                        #
+                        # REGEN: after pruning to k survivors we regenerate back to `bon` total
+                        # completions, distributed across the k survivors EVENLY, with any
+                        # remainder handed to the top-ranked ones (even_top_allocation). Each plan
+                        # then carries its own n>=1; without regen every plan gets one completion.
                         flat_variants = []
                         flat_plans = []
-                        group_sizes = []
+                        flat_sampling = []
+                        group_sizes = []  # number of PLAN requests submitted per prompt (not completions)
                         for i, diverse_req_prompts in enumerate(diverse_prompts):
-                            for dp in diverse_req_prompts:
+                            num_plans = len(diverse_req_prompts)
+                            if regen and num_plans > 0:
+                                alloc = even_top_allocation(num_plans, bon)
+                            else:
+                                alloc = [1] * num_plans
+                            submitted = 0
+                            for dp, n_i in zip(diverse_req_prompts, alloc):
+                                if n_i <= 0:
+                                    continue  # allocation gave this survivor no completions
                                 flat_variants.append(f"<|im_start|>system\nAfter thinking, ensure the final formatted answer is within <answer></answer> tags and follows these instructions: {answer_instruction}.<|im_end|>\n<|im_start|>user\n{prompts[i]}<|im_end|>\n<|im_start|>assistant\n{dp}")
                                 flat_plans.append(dp)
-                            group_sizes.append(len(diverse_req_prompts))
+                                flat_sampling.append(SamplingParams(n=n_i, **sp_kwargs))
+                                submitted += 1
+                            group_sizes.append(submitted)
 
-                        flat_outputs = self.llm.generate(flat_variants, sampling_params=sampling_params) if flat_variants else []
+                        flat_outputs = self.llm.generate(flat_variants, sampling_params=flat_sampling) if flat_variants else []
 
-                        # Regroup by prompt; vLLM preserves input order
+                        # Regroup by prompt; vLLM preserves input order. Each plan request may
+                        # carry several completions (out.outputs) under the staircase, so expand
+                        # them all into this prompt's response list.
                         cursor = 0
-                        for n_variants in group_sizes:
-                            group_outs = flat_outputs[cursor:cursor + n_variants]
-                            group_plans = flat_plans[cursor:cursor + n_variants]
-                            cursor += n_variants
+                        for n_plans in group_sizes:
+                            group_outs = flat_outputs[cursor:cursor + n_plans]
+                            group_plans = flat_plans[cursor:cursor + n_plans]
+                            cursor += n_plans
 
-                            # Concatenate the plan with the completion and store token count
-                            path_responses.append([{"text": dp + out.outputs[0].text, "token_count": len(out.outputs[0].token_ids)} for dp, out in zip(group_plans, group_outs)])
-                            path_gen_tokens.append(sum(len(out.outputs[0].token_ids) for out in group_outs))
+                            prompt_resps = []
+                            gen_tok = 0
+                            for dp, out in zip(group_plans, group_outs):
+                                for comp in out.outputs:
+                                    # Concatenate the plan with the completion and store token count.
+                                    # The plan prefix is NOT re-charged here -- it was already paid
+                                    # for as decode when it was drafted.
+                                    prompt_resps.append({"text": dp + comp.text, "token_count": len(comp.token_ids)})
+                                    gen_tok += len(comp.token_ids)
+                            path_responses.append(prompt_resps)
+                            path_gen_tokens.append(gen_tok)
 
                         # Select solutions from completions
                         chunk_data = self._process_final_selection(prompts, len(path_responses[0]), path_responses, group_size, max_tokens)
@@ -393,11 +426,16 @@ class Model:
             organized_outputs["raw_base_responses"] = raw_chunks_cache
             
         return organized_outputs
+    def _strip_drafts(self, outputs):
+        """Drop the vLLM objects, keeping the text and its sampled-token count."""
+        return [[{"text": out.text, "token_count": len(out.token_ids)} for out in req.outputs]
+                for req in outputs]
+
     def _process_final_selection(self, prompts, bon, responses_list, group_size, max_tokens):
         """Helper handling selection and formatting of final completions."""
         final_sel, final_reasons, final_tokens = self.select_solution(bon, prompts, responses_list, max_tokens)
         tourney_sel, tourney_reasons, tourney_tokens = self.tourney_select_solution(bon, group_size, prompts, responses_list)
-        
+
         all_answers = [[resp["text"] for resp in prompt_resps] for prompt_resps in responses_list]
         base_tokens = [sum(resp["token_count"] for resp in prompt_resps) for prompt_resps in responses_list]
 

@@ -80,10 +80,11 @@ class ranker():
             for j, output in enumerate(outputs):
                 original_i = pending_indices[j]  # Map batch index back to original index
                 text = extract_content(output.outputs[0].text)
-                
-                # Accumulate tokens across retries
+
+                # Accumulate SAMPLED tokens across retries; the ranking prompt itself is not
+                # charged (see the decode-only note in model/utils.py).
                 final_tokens[original_i] += len(output.outputs[0].token_ids)
-                
+
                 # 1. Isolate the results block
                 results_match = re.findall(r'<results>(.*?)</results>', text, re.DOTALL)
                 results_text = results_match[-1].strip() if results_match else text 
@@ -127,6 +128,103 @@ class ranker():
             final_indexes[i] = valid_ints + missing_ints
 
         return final_indexes, final_reasonings, final_tokens
+    def cluster(self, user_prompts, plans, max_selection_tokens=16000, max_retries=3):
+        """Group each question's candidate plans by their core SOLUTION APPROACH.
+
+        Returns (labels, tokens):
+          labels[i] : list of int cluster ids, one per plan of question i. Plans that
+                      pursue the same underlying strategy share an id; genuinely
+                      distinct strategies get different ids.
+          tokens[i] : selection tokens spent on question i (for cost accounting).
+
+        Used by the diverse (best-of-k) pruning to keep only UNIQUE approaches among
+        the survivors. Mirrors rank()'s batched chat + retry + graceful fallback. The
+        fallback labels every plan distinctly (each its own cluster), which makes the
+        downstream dedup a no-op -- i.e. it degrades safely toward the non-diverse arm
+        rather than dropping candidates.
+        """
+        sampling_params = SamplingParams(temperature=0.7, top_p=0.8, top_k=20, max_tokens=max_selection_tokens, seed=self.seed)
+
+        # 1. Pre-build the prompts. Ask for a group LETTER per plan, in index order.
+        all_prompts = []
+        for user_prompt, problem_plans in zip(user_prompts, plans):
+            n = len(problem_plans)
+            examples_str = "".join([
+                f"<plan id='i{idx}'>\n{problem_plans[idx].replace('<think>', '')}\n</plan>\n"
+                for idx in range(n)
+            ])
+            id_lines = "\n".join([f"i{j}: <letter>" for j in range(n)])
+            prompt_content = f"""Below are {n} candidate plans for solving the same problem. Group them by their core SOLUTION APPROACH: two plans that pursue the same underlying strategy get the SAME letter, plans with genuinely different strategies get DIFFERENT letters. Use letters A, B, C, ... Do not judge quality, only similarity of approach.
+
+            ### Problem:
+            {user_prompt}
+
+            ### Plans:
+            {examples_str}
+
+            ### Instructions:
+            1. Assign every plan a group letter (reuse a letter for same-approach plans).
+            2. Output EXACTLY one line per plan, in this order, nothing else inside the tags:
+
+            <results>
+            {id_lines}
+            </results>"""
+            all_prompts.append([{"role": "user", "content": prompt_content}])
+
+        N = len(user_prompts)
+        final_labels = [None] * N
+        final_tokens = [0] * N
+        pending_indices = list(range(N))
+        attempts = 0
+
+        while pending_indices and attempts < max_retries:
+            print(f"Clustering Attempt {attempts + 1}/{max_retries}. Pending: {len(pending_indices)}", file=sys.stderr)
+            current_prompts = [all_prompts[i] for i in pending_indices]
+            outputs = self.llm.chat(current_prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
+
+            new_pending_indices = []
+            for j, output in enumerate(outputs):
+                original_i = pending_indices[j]
+                text = extract_content(output.outputs[0].text)
+                final_tokens[original_i] += len(output.outputs[0].token_ids)
+
+                expected = len(plans[original_i])
+                results_match = re.findall(r'<results>(.*?)</results>', text, re.DOTALL)
+                results_text = results_match[-1].strip() if results_match else text
+
+                # Parse "iX: <letter>" lines into a label per plan index. Require the
+                # ':'/'-' separator and a STANDALONE letter (not the first letter of a
+                # following word), so "i0 belongs to..." can't be misread as label 'b'.
+                # Missing/garbled lines are left out and repaired by retry/fallback below.
+                parsed = {}
+                for m in re.finditer(r'i(\d+)\s*[:\-]\s*([A-Za-z])(?![A-Za-z])', results_text):
+                    idx = int(m.group(1))
+                    if 0 <= idx < expected and idx not in parsed:
+                        parsed[idx] = m.group(2).upper()
+
+                if len(parsed) == expected:
+                    letters = [parsed[idx] for idx in range(expected)]
+                    # Map letters -> stable integer ids in first-appearance order.
+                    order, ids = {}, []
+                    for L in letters:
+                        if L not in order:
+                            order[L] = len(order)
+                        ids.append(order[L])
+                    final_labels[original_i] = ids
+                else:
+                    new_pending_indices.append(original_i)
+
+            pending_indices = new_pending_indices
+            attempts += 1
+
+        # Fallback: anything still unparsed after max_retries is labelled all-distinct,
+        # so first-k-unique keeps exactly the top-k (dedup becomes a no-op for it).
+        for i in pending_indices:
+            print(f"Index {i} failed clustering after {max_retries} attempts. Labelling all-distinct.", file=sys.stderr)
+            final_labels[i] = list(range(len(plans[i])))
+
+        return final_labels, final_tokens
+
     def tourney_rank(self, user_prompts, rankees, group_size, target_count, max_retries=3):
         """
         Tournament style ranking for partial plans.

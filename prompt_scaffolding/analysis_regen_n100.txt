@@ -1,0 +1,724 @@
+
+############################################################################################################
+# CONFIG  plan=1000  prune=2.0
+############################################################################################################
+============================================================================================================
+FILES
+  baseline  2026-07-25_11-42-12_baseline_bon_1_2_4_8_16_32_strat_None_plan_4000_prune_2.json
+  random    merged_random_bon_1_2_4_8_16_strat_CompletionStrategy_plan_1000_prune_2.0_regen.json
+  rank      merged_rank_bon_1_2_4_8_16_strat_CompletionStrategy_plan_1000_prune_2.0_regen.json
+  tourney   merged_tourney_bon_1_2_4_8_16_strat_CompletionStrategy_plan_1000_prune_2.0_regen.json
+  N values: [1, 2, 4, 8, 16, 32]
+  questions: baseline=100, random=100, rank=100, tourney=100
+
+============================================================================================================
+1. ACCURACY AND TOKENS PER CELL   (selector accuracy; obs = question x chunk)
+
+arm                    N=1             N=2             N=4             N=8            N=16            N=32
+baseline      47.2%   8238t    57.0%  16890t    63.7%  33840t    68.5%  67278t    72.0% 133186t    75.0% 264452t
+rank          46.8%   6276t    52.5%  11880t    63.2%  23145t    65.8%  46248t    65.5%  89248t               -
+random        46.0%   5944t    53.8%  12449t    60.0%  24642t    64.8%  48034t    66.0%  94078t               -
+tourney       45.5%   5968t    55.0%  11711t    61.8%  23669t    65.2%  46685t    68.5%  91950t               -
+
+============================================================================================================
+2. JUDGE vs RANDOM PICK, WITHIN THE SAME POOL   (does selection beat chance?)
+
+baseline N=1: judge - random       d = +0.0 pts   naive 95% CI [+0.0, +0.0]   cluster 95% CI [+0.0, +0.0]   deff nan   b/c 0/0   McNemar p = 1   clustered p = nan
+baseline N=2: judge - random       d = +7.0 pts   naive 95% CI [+4.1, +9.9]   cluster 95% CI [+3.9, +10.1]   deff 1.18   b/c 32/4   McNemar p = 1.94e-06   clustered p = 1.1e-05
+                                   power: MDE(80%) 4.5 pts   power to detect 5 pts = 88%
+baseline N=4: judge - random       d = +16.0 pts   naive 95% CI [+12.0, +20.0]   cluster 95% CI [+11.1, +20.9]   deff 1.43   b/c 71/7   McNemar p = 1.93e-14   clustered p = 1.02e-10
+                                   power: MDE(80%) 6.9 pts   power to detect 5 pts = 52%
+baseline N=8: judge - random       d = +20.5 pts   naive 95% CI [+15.9, +25.1]   cluster 95% CI [+15.0, +26.0]   deff 1.40   b/c 93/11   McNemar p = 2.49e-17   clustered p = 1.79e-13
+                                   power: MDE(80%) 7.8 pts   power to detect 5 pts = 43%   <- underpowered; a null here is NOT evidence of no effect
+baseline N=16: judge - random      d = +22.0 pts   naive 95% CI [+14.9, +29.1]   cluster 95% CI [+14.6, +29.4]   deff 1.08   b/c 53/9   McNemar p = 1.05e-08   clustered p = 5.99e-09
+                                   power: MDE(80%) 10.6 pts   power to detect 5 pts = 26%   <- underpowered; a null here is NOT evidence of no effect
+baseline N=32: judge - random      d = +23.0 pts   naive 95% CI [+13.0, +33.0]   cluster 95% CI [+13.0, +33.0]   deff 0.99   b/c 27/4   McNemar p = 3.4e-05   clustered p = 6.38e-06
+                                   power: MDE(80%) 14.3 pts   power to detect 5 pts = 16%   <- underpowered; a null here is NOT evidence of no effect
+
+rank N=1: judge - random           d = +0.0 pts   naive 95% CI [+0.0, +0.0]   cluster 95% CI [+0.0, +0.0]   deff nan   b/c 0/0   McNemar p = 1   clustered p = nan
+rank N=2: judge - random           d = +7.2 pts   naive 95% CI [+4.4, +10.1]   cluster 95% CI [+4.4, +10.1]   deff 1.05   b/c 32/3   McNemar p = 4.18e-07   clustered p = 9.29e-07
+                                   power: MDE(80%) 4.1 pts   power to detect 5 pts = 92%
+rank N=4: judge - random           d = +17.8 pts   naive 95% CI [+13.6, +21.9]   cluster 95% CI [+12.3, +23.2]   deff 1.69   b/c 78/7   McNemar p = 2.8e-16   clustered p = 1.77e-10
+                                   power: MDE(80%) 7.8 pts   power to detect 5 pts = 44%   <- underpowered; a null here is NOT evidence of no effect
+rank N=8: judge - random           d = +18.5 pts   naive 95% CI [+14.1, +22.9]   cluster 95% CI [+12.8, +24.2]   deff 1.68   b/c 84/10   McNemar p = 1.03e-15   clustered p = 2.43e-10
+                                   power: MDE(80%) 8.2 pts   power to detect 5 pts = 40%   <- underpowered; a null here is NOT evidence of no effect
+rank N=16: judge - random          d = +20.0 pts   naive 95% CI [+12.9, +27.1]   cluster 95% CI [+12.4, +27.6]   deff 1.15   b/c 50/10   McNemar p = 1.62e-07   clustered p = 2.78e-07
+                                   power: MDE(80%) 10.9 pts   power to detect 5 pts = 25%   <- underpowered; a null here is NOT evidence of no effect
+
+random N=1: judge - random         d = +0.0 pts   naive 95% CI [+0.0, +0.0]   cluster 95% CI [+0.0, +0.0]   deff nan   b/c 0/0   McNemar p = 1   clustered p = nan
+random N=2: judge - random         d = +10.2 pts   naive 95% CI [+7.0, +13.5]   cluster 95% CI [+6.3, +14.2]   deff 1.43   b/c 45/4   McNemar p = 8.23e-10   clustered p = 3.55e-07
+                                   power: MDE(80%) 5.6 pts   power to detect 5 pts = 70%
+random N=4: judge - random         d = +13.0 pts   naive 95% CI [+9.1, +16.9]   cluster 95% CI [+8.7, +17.3]   deff 1.21   b/c 61/9   McNemar p = 1.28e-10   clustered p = 3.68e-09
+                                   power: MDE(80%) 6.2 pts   power to detect 5 pts = 62%
+random N=8: judge - random         d = +20.0 pts   naive 95% CI [+15.5, +24.5]   cluster 95% CI [+14.3, +25.7]   deff 1.55   b/c 91/11   McNemar p = 7.97e-17   clustered p = 6.14e-12
+                                   power: MDE(80%) 8.1 pts   power to detect 5 pts = 40%   <- underpowered; a null here is NOT evidence of no effect
+random N=16: judge - random        d = +23.5 pts   naive 95% CI [+16.4, +30.6]   cluster 95% CI [+14.9, +32.1]   deff 1.47   b/c 55/8   McNemar p = 9.76e-10   clustered p = 9.69e-08
+                                   power: MDE(80%) 12.3 pts   power to detect 5 pts = 20%   <- underpowered; a null here is NOT evidence of no effect
+
+tourney N=1: judge - random        d = +0.0 pts   naive 95% CI [+0.0, +0.0]   cluster 95% CI [+0.0, +0.0]   deff nan   b/c 0/0   McNemar p = 1   clustered p = nan
+tourney N=2: judge - random        d = +7.2 pts   naive 95% CI [+4.6, +9.9]   cluster 95% CI [+4.5, +10.0]   deff 1.06   b/c 30/1   McNemar p = 2.98e-08   clustered p = 1.82e-07
+                                   power: MDE(80%) 3.9 pts   power to detect 5 pts = 95%
+tourney N=4: judge - random        d = +16.0 pts   naive 95% CI [+11.8, +20.2]   cluster 95% CI [+11.0, +21.0]   deff 1.43   b/c 73/9   McNemar p = 1.38e-13   clustered p = 3.54e-10
+                                   power: MDE(80%) 7.1 pts   power to detect 5 pts = 50%
+tourney N=8: judge - random        d = +17.5 pts   naive 95% CI [+13.1, +21.9]   cluster 95% CI [+12.5, +22.5]   deff 1.28   b/c 82/12   McNemar p = 5.62e-14   clustered p = 1.07e-11
+                                   power: MDE(80%) 7.2 pts   power to detect 5 pts = 49%   <- underpowered; a null here is NOT evidence of no effect
+tourney N=16: judge - random       d = +21.5 pts   naive 95% CI [+15.0, +28.0]   cluster 95% CI [+14.2, +28.8]   deff 1.24   b/c 48/5   McNemar p = 7.08e-10   clustered p = 6.84e-09
+                                   power: MDE(80%) 10.4 pts   power to detect 5 pts = 27%   <- underpowered; a null here is NOT evidence of no effect
+
+============================================================================================================
+3. ORACLE CEILING   (a correct candidate EXISTS vs the judge FINDS it)
+   NOTE: for pruned arms this is pass@k over SURVIVORS, not over all N.
+   Only the baseline row is a clean best-of-N ceiling.
+
+baseline   N=1   ceiling  47.2%   selected  47.2%   gap  0.0 pts   capture 100.0%
+baseline   N=2   ceiling  59.0%   selected  57.0%   gap  2.0 pts   capture  96.6%
+baseline   N=4   ceiling  66.8%   selected  63.7%   gap  3.0 pts   capture  95.5%
+baseline   N=8   ceiling  75.8%   selected  68.5%   gap  7.2 pts   capture  90.4%
+baseline   N=16  ceiling  80.5%   selected  72.0%   gap  8.5 pts   capture  89.4%
+baseline   N=32  ceiling  87.0%   selected  75.0%   gap 12.0 pts   capture  86.2%
+
+rank       N=1   ceiling  46.8%   selected  46.8%   gap  0.0 pts   capture 100.0%
+rank       N=2   ceiling  54.5%   selected  52.5%   gap  2.0 pts   capture  96.3%
+rank       N=4   ceiling  66.8%   selected  63.2%   gap  3.5 pts   capture  94.8%
+rank       N=8   ceiling  71.8%   selected  65.8%   gap  6.0 pts   capture  91.6%
+rank       N=16  ceiling  76.5%   selected  65.5%   gap 11.0 pts   capture  85.6%
+
+random     N=1   ceiling  46.0%   selected  46.0%   gap  0.0 pts   capture 100.0%
+random     N=2   ceiling  55.5%   selected  53.8%   gap  1.8 pts   capture  96.8%
+random     N=4   ceiling  63.5%   selected  60.0%   gap  3.5 pts   capture  94.5%
+random     N=8   ceiling  71.0%   selected  64.8%   gap  6.2 pts   capture  91.2%
+random     N=16  ceiling  76.5%   selected  66.0%   gap 10.5 pts   capture  86.3%
+
+tourney    N=1   ceiling  45.5%   selected  45.5%   gap  0.0 pts   capture 100.0%
+tourney    N=2   ceiling  56.0%   selected  55.0%   gap  1.0 pts   capture  98.2%
+tourney    N=4   ceiling  64.5%   selected  61.8%   gap  2.7 pts   capture  95.7%
+tourney    N=8   ceiling  72.5%   selected  65.2%   gap  7.3 pts   capture  90.0%
+tourney    N=16  ceiling  77.0%   selected  68.5%   gap  8.5 pts   capture  89.0%
+
+============================================================================================================
+4. ARM CONTRASTS, PER N   (the pruning claims)
+
+N=1   rank - random                d = +0.8 pts   naive 95% CI [-3.6, +5.1]   cluster 95% CI [-3.2, +4.7]   deff 0.82   b/c 40/37   McNemar p = 0.82   clustered p = 0.707
+                                   power: MDE(80%) 5.6 pts   power to detect 5 pts = 71%
+                                   non-inferiority (margin 5 pts): lower bound -3.2 -> NON-INFERIOR   one-sided p = 0.00196
+                                   tokens 6276 vs 5944  (+5.6%, 95% CI [+0.6%, +10.5%])
+N=2   rank - random                d = -1.2 pts   naive 95% CI [-5.6, +3.1]   cluster 95% CI [-5.6, +3.1]   deff 1.02   b/c 36/41   McNemar p = 0.649   clustered p = 0.575
+                                   power: MDE(80%) 6.2 pts   power to detect 5 pts = 61%
+                                   non-inferiority (margin 5 pts): lower bound -5.6 -> cannot claim parity   one-sided p = 0.0463
+                                   tokens 11880 vs 12449  (-4.6%, 95% CI [-8.5%, -0.7%])
+N=4   rank - random                d = +3.2 pts   naive 95% CI [-1.0, +7.5]   cluster 95% CI [-0.9, +7.4]   deff 0.93   b/c 45/32   McNemar p = 0.171   clustered p = 0.126
+                                   power: MDE(80%) 5.9 pts   power to detect 5 pts = 65%
+                                   non-inferiority (margin 5 pts): lower bound -0.9 -> NON-INFERIOR   one-sided p = 5.05e-05
+                                   tokens 23145 vs 24642  (-6.1%, 95% CI [-9.2%, -2.9%])
+N=8   rank - random                d = +1.0 pts   naive 95% CI [-3.1, +5.1]   cluster 95% CI [-3.0, +5.0]   deff 0.94   b/c 37/33   McNemar p = 0.72   clustered p = 0.624
+                                   power: MDE(80%) 5.7 pts   power to detect 5 pts = 69%
+                                   non-inferiority (margin 5 pts): lower bound -3.0 -> NON-INFERIOR   one-sided p = 0.00163
+                                   tokens 46248 vs 48034  (-3.7%, 95% CI [-6.0%, -1.5%])
+N=16  rank - random                d = -0.5 pts   naive 95% CI [-6.5, +5.5]   cluster 95% CI [-6.5, +5.5]   deff 0.99   b/c 18/19   McNemar p = 1   clustered p = 0.87
+                                   power: MDE(80%) 8.6 pts   power to detect 5 pts = 37%   <- underpowered; a null here is NOT evidence of no effect
+                                   non-inferiority (margin 5 pts): lower bound -6.5 -> cannot claim parity   one-sided p = 0.0705
+                                   tokens 89248 vs 94078  (-5.1%, 95% CI [-7.4%, -2.8%])
+
+N=1   rank - baseline              d = -0.5 pts   naive 95% CI [-4.9, +3.9]   cluster 95% CI [-4.6, +3.6]   deff 0.85   b/c 40/42   McNemar p = 0.912   clustered p = 0.812
+                                   power: MDE(80%) 5.9 pts   power to detect 5 pts = 66%
+                                   non-inferiority (margin 5 pts): lower bound -4.6 -> NON-INFERIOR   one-sided p = 0.0161
+                                   tokens 6276 vs 8238  (-23.8%, 95% CI [-28.6%, -19.0%])
+N=2   rank - baseline              d = -4.5 pts   naive 95% CI [-8.6, -0.4]   cluster 95% CI [-8.7, -0.3]   deff 1.02   b/c 27/45   McNemar p = 0.0444   clustered p = 0.0358
+                                   power: MDE(80%) 6.0 pts   power to detect 5 pts = 65%
+                                   non-inferiority (margin 5 pts): lower bound -8.7 -> cannot claim parity   one-sided p = 0.408
+                                   tokens 11880 vs 16890  (-29.7%, 95% CI [-33.2%, -26.2%])
+N=4   rank - baseline              d = -0.5 pts   naive 95% CI [-4.5, +3.5]   cluster 95% CI [-4.6, +3.6]   deff 1.03   b/c 32/34   McNemar p = 0.902   clustered p = 0.809
+                                   power: MDE(80%) 5.8 pts   power to detect 5 pts = 68%
+                                   non-inferiority (margin 5 pts): lower bound -4.6 -> NON-INFERIOR   one-sided p = 0.0149
+                                   tokens 23145 vs 33840  (-31.6%, 95% CI [-34.0%, -29.2%])
+N=8   rank - baseline              d = -2.8 pts   naive 95% CI [-7.0, +1.5]   cluster 95% CI [-7.1, +1.6]   deff 1.01   b/c 33/44   McNemar p = 0.254   clustered p = 0.215
+                                   power: MDE(80%) 6.2 pts   power to detect 5 pts = 62%
+                                   non-inferiority (margin 5 pts): lower bound -7.1 -> cannot claim parity   one-sided p = 0.155
+                                   tokens 46248 vs 67278  (-31.3%, 95% CI [-33.2%, -29.3%])
+N=16  rank - baseline              d = -6.5 pts   naive 95% CI [-13.5, +0.5]   cluster 95% CI [-12.8, -0.2]   deff 0.82   b/c 19/32   McNemar p = 0.0919   clustered p = 0.0442
+                                   power: MDE(80%) 9.0 pts   power to detect 5 pts = 34%   <- underpowered; a null here is NOT evidence of no effect
+                                   non-inferiority (margin 5 pts): lower bound -12.8 -> cannot claim parity   one-sided p = 0.679
+                                   tokens 89248 vs 133186  (-33.0%, 95% CI [-34.9%, -31.1%])
+
+N=1   tourney - baseline           d = -1.8 pts   naive 95% CI [-6.3, +2.8]   cluster 95% CI [-6.2, +2.7]   deff 0.97   b/c 39/46   McNemar p = 0.515   clustered p = 0.443
+                                   power: MDE(80%) 6.4 pts   power to detect 5 pts = 59%
+                                   non-inferiority (margin 5 pts): lower bound -6.2 -> cannot claim parity   one-sided p = 0.0772
+                                   tokens 5968 vs 8238  (-27.5%, 95% CI [-32.2%, -22.9%])
+N=2   tourney - baseline           d = -2.0 pts   naive 95% CI [-6.3, +2.3]   cluster 95% CI [-6.0, +2.0]   deff 0.89   b/c 34/42   McNemar p = 0.422   clustered p = 0.332
+                                   power: MDE(80%) 5.8 pts   power to detect 5 pts = 68%
+                                   non-inferiority (margin 5 pts): lower bound -6.0 -> cannot claim parity   one-sided p = 0.0729
+                                   tokens 11711 vs 16890  (-30.7%, 95% CI [-33.9%, -27.4%])
+N=4   tourney - baseline           d = -2.0 pts   naive 95% CI [-6.2, +2.2]   cluster 95% CI [-6.4, +2.4]   deff 1.10   b/c 33/41   McNemar p = 0.416   clustered p = 0.378
+                                   power: MDE(80%) 6.3 pts   power to detect 5 pts = 60%
+                                   non-inferiority (margin 5 pts): lower bound -6.4 -> cannot claim parity   one-sided p = 0.0928
+                                   tokens 23669 vs 33840  (-30.1%, 95% CI [-32.7%, -27.5%])
+N=8   tourney - baseline           d = -3.2 pts   naive 95% CI [-7.5, +1.0]   cluster 95% CI [-7.6, +1.1]   deff 1.01   b/c 32/45   McNemar p = 0.171   clustered p = 0.141
+                                   power: MDE(80%) 6.2 pts   power to detect 5 pts = 62%
+                                   non-inferiority (margin 5 pts): lower bound -7.6 -> cannot claim parity   one-sided p = 0.214
+                                   tokens 46685 vs 67278  (-30.6%, 95% CI [-32.4%, -28.8%])
+N=16  tourney - baseline           d = -3.5 pts   naive 95% CI [-9.1, +2.1]   cluster 95% CI [-8.8, +1.8]   deff 0.87   b/c 13/20   McNemar p = 0.296   clustered p = 0.192
+                                   power: MDE(80%) 7.5 pts   power to detect 5 pts = 46%   <- underpowered; a null here is NOT evidence of no effect
+                                   non-inferiority (margin 5 pts): lower bound -8.8 -> cannot claim parity   one-sided p = 0.288
+                                   tokens 91950 vs 133186  (-31.0%, 95% CI [-33.2%, -28.8%])
+
+N=1   random - baseline            d = -1.2 pts   naive 95% CI [-5.6, +3.1]   cluster 95% CI [-5.0, +2.5]   deff 0.76   b/c 36/41   McNemar p = 0.649   clustered p = 0.516
+                                   power: MDE(80%) 5.4 pts   power to detect 5 pts = 74%
+                                   non-inferiority (margin 5 pts): lower bound -5.0 -> cannot claim parity   one-sided p = 0.0258
+                                   tokens 5944 vs 8238  (-27.8%, 95% CI [-32.2%, -23.5%])
+N=2   random - baseline            d = -3.2 pts   naive 95% CI [-7.7, +1.2]   cluster 95% CI [-7.5, +1.0]   deff 0.93   b/c 34/47   McNemar p = 0.182   clustered p = 0.136
+                                   power: MDE(80%) 6.1 pts   power to detect 5 pts = 63%
+                                   non-inferiority (margin 5 pts): lower bound -7.5 -> cannot claim parity   one-sided p = 0.211
+                                   tokens 12449 vs 16890  (-26.3%, 95% CI [-30.2%, -22.4%])
+N=4   random - baseline            d = -3.8 pts   naive 95% CI [-8.2, +0.7]   cluster 95% CI [-8.1, +0.6]   deff 0.93   b/c 34/49   McNemar p = 0.124   clustered p = 0.0885
+                                   power: MDE(80%) 6.2 pts   power to detect 5 pts = 62%
+                                   non-inferiority (margin 5 pts): lower bound -8.1 -> cannot claim parity   one-sided p = 0.285
+                                   tokens 24642 vs 33840  (-27.2%, 95% CI [-30.2%, -24.2%])
+N=8   random - baseline            d = -3.8 pts   naive 95% CI [-8.0, +0.5]   cluster 95% CI [-7.9, +0.4]   deff 0.92   b/c 31/46   McNemar p = 0.11   clustered p = 0.076
+                                   power: MDE(80%) 5.9 pts   power to detect 5 pts = 66%
+                                   non-inferiority (margin 5 pts): lower bound -7.9 -> cannot claim parity   one-sided p = 0.277
+                                   tokens 48034 vs 67278  (-28.6%, 95% CI [-31.1%, -26.2%])
+N=16  random - baseline            d = -6.0 pts   naive 95% CI [-11.7, -0.3]   cluster 95% CI [-11.1, -0.9]   deff 0.79   b/c 11/23   McNemar p = 0.0576   clustered p = 0.0205
+                                   power: MDE(80%) 7.3 pts   power to detect 5 pts = 49%   <- underpowered; a null here is NOT evidence of no effect
+                                   non-inferiority (margin 5 pts): lower bound -11.1 -> cannot claim parity   one-sided p = 0.65
+                                   tokens 94078 vs 133186  (-29.4%, 95% CI [-31.7%, -27.0%])
+
+============================================================================================================
+5. POOLED ACROSS N
+
+   chunk-weighted: every (question, N, chunk) observation counts once, so an N
+   with more chunks pulls harder. equal-weight: each N contributes equally.
+
+pooled rank - random (chunk-wtd)   d = +0.8 pts   naive 95% CI [-1.2, +2.8]   cluster 95% CI [-0.9, +2.5]   deff 0.73   b/c 176/162   McNemar p = 0.48   clustered p = 0.375
+                                   power: MDE(80%) 2.5 pts   power to detect 5 pts = 100%
+                                   equal-weight per N: d = +0.7 pts (from 5 cells: +0.8, -1.2, +3.2, +1.0, -0.5)
+
+pooled rank - baseline (chunk-wtd) d = -2.6 pts   naive 95% CI [-4.6, -0.5]   cluster 95% CI [-5.0, -0.1]   deff 1.45   b/c 151/197   McNemar p = 0.0157   clustered p = 0.0412
+                                   power: MDE(80%) 3.5 pts   power to detect 5 pts = 98%
+                                   equal-weight per N: d = -2.9 pts (from 5 cells: -0.5, -4.5, -0.5, -2.8, -6.5)
+
+pooled tourney - baseline (chunk-wtd) d = -2.4 pts   naive 95% CI [-4.4, -0.4]   cluster 95% CI [-4.8, +0.0]   deff 1.43   b/c 151/194   McNemar p = 0.0236   clustered p = 0.0534
+                                   power: MDE(80%) 3.5 pts   power to detect 5 pts = 98%
+                                   equal-weight per N: d = -2.5 pts (from 5 cells: -1.8, -2.0, -2.0, -3.2, -3.5)
+
+pooled random - baseline (chunk-wtd) d = -3.3 pts   naive 95% CI [-5.4, -1.3]   cluster 95% CI [-5.8, -0.8]   deff 1.49   b/c 146/206   McNemar p = 0.00162   clustered p = 0.00898
+                                   power: MDE(80%) 3.6 pts   power to detect 5 pts = 97%
+                                   equal-weight per N: d = -3.6 pts (from 5 cells: -1.2, -3.2, -3.8, -3.8, -6.0)
+
+============================================================================================================
+6. TOKEN-MATCHED CONTRASTS   (equal BUDGET, not equal N)
+
+   Comparing arms at the same N compares unequal compute: a pruned arm at
+   N=16 can cost half of baseline N=16. The inference-scaling question is
+   'at a fixed budget, which wins?', so each pruned cell is matched to the
+   baseline N whose token cost is closest, and paired at the question level.
+
+rank N=1 vs baseline N=1           d = -0.5 pts   95% CI [-4.6, +3.6]   win/loss 23/21   p = 0.812   sign p = 0.88
+                                   tokens 6276 vs 8238 (-23.8% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -4.6 -> NON-INFERIOR   one-sided p = 0.0161
+                                   WARNING: -24% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 5.9 pts   power to detect 5 pts = 66%
+rank N=2 vs baseline N=1           d = +5.2 pts   95% CI [+0.3, +10.2]   win/loss 30/14   p = 0.0391   sign p = 0.0226
+                                   tokens 11880 vs 8238 (+44.2% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound +0.3 -> NON-INFERIOR   one-sided p = 2.82e-05
+                                   WARNING: +44% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 7.1 pts   power to detect 5 pts = 50%
+rank N=4 vs baseline N=2           d = +6.2 pts   95% CI [+1.7, +10.8]   win/loss 26/14   p = 0.00757   sign p = 0.0807
+                                   tokens 23145 vs 16890 (+37.0% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound +1.7 -> NON-INFERIOR   one-sided p = 7.65e-07
+                                   WARNING: +37% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.6 pts   power to detect 5 pts = 57%
+rank N=8 vs baseline N=4           d = +2.0 pts   95% CI [-2.2, +6.2]   win/loss 18/16   p = 0.353   sign p = 0.864
+                                   tokens 46248 vs 33840 (+36.7% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -2.2 -> NON-INFERIOR   one-sided p = 0.000572
+                                   WARNING: +37% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.0 pts   power to detect 5 pts = 64%
+rank N=16 vs baseline N=8          d = -3.0 pts   95% CI [-8.5, +2.5]   win/loss 19/23   p = 0.285   sign p = 0.644
+                                   tokens 89248 vs 67278 (+32.7% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -8.5 -> cannot claim parity   one-sided p = 0.238
+                                   WARNING: +33% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 7.9 pts   power to detect 5 pts = 43%   <- underpowered
+
+random N=1 vs baseline N=1         d = -1.2 pts   95% CI [-5.0, +2.5]   win/loss 17/18   p = 0.516   sign p = 1
+                                   tokens 5944 vs 8238 (-27.8% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -5.0 -> cannot claim parity   one-sided p = 0.0258
+                                   WARNING: -28% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 5.4 pts   power to detect 5 pts = 74%
+random N=2 vs baseline N=1         d = +6.5 pts   95% CI [+1.9, +11.1]   win/loss 27/12   p = 0.00561   sign p = 0.0237
+                                   tokens 12449 vs 8238 (+51.1% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound +1.9 -> NON-INFERIOR   one-sided p = 4.79e-07
+                                   WARNING: +51% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.6 pts   power to detect 5 pts = 57%
+random N=4 vs baseline N=2         d = +3.0 pts   95% CI [-1.8, +7.8]   win/loss 23/19   p = 0.22   sign p = 0.644
+                                   tokens 24642 vs 16890 (+45.9% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -1.8 -> NON-INFERIOR   one-sided p = 0.00053
+                                   WARNING: +46% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.8 pts   power to detect 5 pts = 53%
+random N=8 vs baseline N=4         d = +1.0 pts   95% CI [-3.2, +5.2]   win/loss 20/21   p = 0.639   sign p = 1
+                                   tokens 48034 vs 33840 (+41.9% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -3.2 -> NON-INFERIOR   one-sided p = 0.00242
+                                   WARNING: +42% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.0 pts   power to detect 5 pts = 65%
+random N=16 vs baseline N=8        d = -2.5 pts   95% CI [-7.4, +2.4]   win/loss 16/22   p = 0.312   sign p = 0.418
+                                   tokens 94078 vs 67278 (+39.8% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -7.4 -> cannot claim parity   one-sided p = 0.156
+                                   WARNING: +40% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.9 pts   power to detect 5 pts = 52%
+
+tourney N=1 vs baseline N=1        d = -1.8 pts   95% CI [-6.2, +2.7]   win/loss 17/20   p = 0.443   sign p = 0.743
+                                   tokens 5968 vs 8238 (-27.5% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -6.2 -> cannot claim parity   one-sided p = 0.0772
+                                   WARNING: -28% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.4 pts   power to detect 5 pts = 59%
+tourney N=2 vs baseline N=1        d = +7.8 pts   95% CI [+3.3, +12.2]   win/loss 30/13   p = 0.000629   sign p = 0.0137
+                                   tokens 11711 vs 8238 (+42.2% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound +3.3 -> NON-INFERIOR   one-sided p = 9.29e-09
+                                   WARNING: +42% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.4 pts   power to detect 5 pts = 60%
+tourney N=4 vs baseline N=2        d = +4.8 pts   95% CI [+0.1, +9.4]   win/loss 25/16   p = 0.0456   sign p = 0.211
+                                   tokens 23669 vs 16890 (+40.1% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound +0.1 -> NON-INFERIOR   one-sided p = 2.03e-05
+                                   WARNING: +40% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.7 pts   power to detect 5 pts = 56%
+tourney N=8 vs baseline N=4        d = +1.5 pts   95% CI [-2.8, +5.8]   win/loss 20/20   p = 0.498   sign p = 1
+                                   tokens 46685 vs 33840 (+38.0% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -2.8 -> NON-INFERIOR   one-sided p = 0.00166
+                                   WARNING: +38% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.2 pts   power to detect 5 pts = 62%
+tourney N=16 vs baseline N=8       d = +0.0 pts   95% CI [-5.1, +5.1]   win/loss 22/18   p = 1   sign p = 0.636
+                                   tokens 91950 vs 67278 (+36.7% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -5.1 -> cannot claim parity   one-sided p = 0.0266
+                                   WARNING: +37% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 7.2 pts   power to detect 5 pts = 49%   <- underpowered
+
+============================================================================================================
+Clusters are questions. deff > 1 means the naive interval was too narrow.
+
+############################################################################################################
+# CONFIG  plan=2500  prune=2.0
+############################################################################################################
+============================================================================================================
+FILES
+  baseline  2026-07-25_11-42-12_baseline_bon_1_2_4_8_16_32_strat_None_plan_4000_prune_2.json
+  random    merged_random_bon_1_2_4_8_16_strat_CompletionStrategy_plan_2500_prune_2.0_regen.json
+  rank      merged_rank_bon_1_2_4_8_16_strat_CompletionStrategy_plan_2500_prune_2.0_regen.json
+  tourney   merged_tourney_bon_1_2_4_8_16_strat_CompletionStrategy_plan_2500_prune_2.0_regen.json
+  N values: [1, 2, 4, 8, 16, 32]
+  questions: baseline=100, random=100, rank=100, tourney=100
+
+============================================================================================================
+1. ACCURACY AND TOKENS PER CELL   (selector accuracy; obs = question x chunk)
+
+arm                    N=1             N=2             N=4             N=8            N=16            N=32
+baseline      47.2%   8238t    57.0%  16890t    63.7%  33840t    68.5%  67278t    72.0% 133186t    75.0% 264452t
+rank          46.2%   6138t    55.0%  11200t    62.0%  22520t    65.8%  44332t    68.5%  86437t               -
+random        46.8%   5872t    53.0%  11709t    59.2%  24104t    66.0%  48680t    70.0%  95361t               -
+tourney       47.8%   5810t    55.0%  11275t    59.2%  22219t    67.2%  45103t    70.5%  88994t               -
+
+============================================================================================================
+2. JUDGE vs RANDOM PICK, WITHIN THE SAME POOL   (does selection beat chance?)
+
+baseline N=1: judge - random       d = +0.0 pts   naive 95% CI [+0.0, +0.0]   cluster 95% CI [+0.0, +0.0]   deff nan   b/c 0/0   McNemar p = 1   clustered p = nan
+baseline N=2: judge - random       d = +7.0 pts   naive 95% CI [+4.1, +9.9]   cluster 95% CI [+3.9, +10.1]   deff 1.18   b/c 32/4   McNemar p = 1.94e-06   clustered p = 1.1e-05
+                                   power: MDE(80%) 4.5 pts   power to detect 5 pts = 88%
+baseline N=4: judge - random       d = +16.0 pts   naive 95% CI [+12.0, +20.0]   cluster 95% CI [+11.1, +20.9]   deff 1.43   b/c 71/7   McNemar p = 1.93e-14   clustered p = 1.02e-10
+                                   power: MDE(80%) 6.9 pts   power to detect 5 pts = 52%
+baseline N=8: judge - random       d = +20.5 pts   naive 95% CI [+15.9, +25.1]   cluster 95% CI [+15.0, +26.0]   deff 1.40   b/c 93/11   McNemar p = 2.49e-17   clustered p = 1.79e-13
+                                   power: MDE(80%) 7.8 pts   power to detect 5 pts = 43%   <- underpowered; a null here is NOT evidence of no effect
+baseline N=16: judge - random      d = +22.0 pts   naive 95% CI [+14.9, +29.1]   cluster 95% CI [+14.6, +29.4]   deff 1.08   b/c 53/9   McNemar p = 1.05e-08   clustered p = 5.99e-09
+                                   power: MDE(80%) 10.6 pts   power to detect 5 pts = 26%   <- underpowered; a null here is NOT evidence of no effect
+baseline N=32: judge - random      d = +23.0 pts   naive 95% CI [+13.0, +33.0]   cluster 95% CI [+13.0, +33.0]   deff 0.99   b/c 27/4   McNemar p = 3.4e-05   clustered p = 6.38e-06
+                                   power: MDE(80%) 14.3 pts   power to detect 5 pts = 16%   <- underpowered; a null here is NOT evidence of no effect
+
+rank N=1: judge - random           d = +0.0 pts   naive 95% CI [+0.0, +0.0]   cluster 95% CI [+0.0, +0.0]   deff nan   b/c 0/0   McNemar p = 1   clustered p = nan
+rank N=2: judge - random           d = +4.5 pts   naive 95% CI [+2.5, +6.5]   cluster 95% CI [+2.4, +6.6]   deff 1.09   b/c 18/0   McNemar p = 7.63e-06   clustered p = 3.55e-05
+                                   power: MDE(80%) 3.0 pts   power to detect 5 pts = 100%
+rank N=4: judge - random           d = +11.2 pts   naive 95% CI [+7.7, +14.8]   cluster 95% CI [+6.6, +15.9]   deff 1.70   b/c 51/6   McNemar p = 5.68e-10   clustered p = 2.01e-06
+                                   power: MDE(80%) 6.6 pts   power to detect 5 pts = 56%
+rank N=8: judge - random           d = +17.0 pts   naive 95% CI [+12.8, +21.2]   cluster 95% CI [+12.2, +21.8]   deff 1.28   b/c 77/9   McNemar p = 1.34e-14   clustered p = 4.71e-12
+                                   power: MDE(80%) 6.9 pts   power to detect 5 pts = 53%
+rank N=16: judge - random          d = +15.5 pts   naive 95% CI [+9.3, +21.7]   cluster 95% CI [+8.7, +22.3]   deff 1.17   b/c 38/7   McNemar p = 3.12e-06   clustered p = 7.44e-06
+                                   power: MDE(80%) 9.7 pts   power to detect 5 pts = 30%   <- underpowered; a null here is NOT evidence of no effect
+
+random N=1: judge - random         d = +0.0 pts   naive 95% CI [+0.0, +0.0]   cluster 95% CI [+0.0, +0.0]   deff nan   b/c 0/0   McNemar p = 1   clustered p = nan
+random N=2: judge - random         d = +5.0 pts   naive 95% CI [+2.5, +7.5]   cluster 95% CI [+2.6, +7.4]   deff 0.96   b/c 23/3   McNemar p = 8.8e-05   clustered p = 4.87e-05
+                                   power: MDE(80%) 3.4 pts   power to detect 5 pts = 98%
+random N=4: judge - random         d = +15.5 pts   naive 95% CI [+11.4, +19.6]   cluster 95% CI [+11.1, +19.9]   deff 1.19   b/c 70/8   McNemar p = 1.74e-13   clustered p = 8.45e-12
+                                   power: MDE(80%) 6.4 pts   power to detect 5 pts = 60%
+random N=8: judge - random         d = +19.2 pts   naive 95% CI [+15.0, +23.5]   cluster 95% CI [+14.1, +24.4]   deff 1.48   b/c 83/6   McNemar p = 2.02e-18   clustered p = 2.58e-13
+                                   power: MDE(80%) 7.4 pts   power to detect 5 pts = 48%   <- underpowered; a null here is NOT evidence of no effect
+random N=16: judge - random        d = +25.0 pts   naive 95% CI [+18.2, +31.8]   cluster 95% CI [+17.2, +32.8]   deff 1.32   b/c 55/5   McNemar p = 1.04e-11   clustered p = 3.66e-10
+                                   power: MDE(80%) 11.2 pts   power to detect 5 pts = 24%   <- underpowered; a null here is NOT evidence of no effect
+
+tourney N=1: judge - random        d = +0.0 pts   naive 95% CI [+0.0, +0.0]   cluster 95% CI [+0.0, +0.0]   deff nan   b/c 0/0   McNemar p = 1   clustered p = nan
+tourney N=2: judge - random        d = +3.5 pts   naive 95% CI [+1.6, +5.4]   cluster 95% CI [+1.3, +5.7]   deff 1.29   b/c 15/1   McNemar p = 0.000519   clustered p = 0.00186
+                                   power: MDE(80%) 3.2 pts   power to detect 5 pts = 99%
+tourney N=4: judge - random        d = +8.8 pts   naive 95% CI [+5.6, +11.9]   cluster 95% CI [+5.5, +12.0]   deff 1.12   b/c 39/4   McNemar p = 3.11e-08   clustered p = 1.93e-07
+                                   power: MDE(80%) 4.7 pts   power to detect 5 pts = 84%
+tourney N=8: judge - random        d = +17.2 pts   naive 95% CI [+12.8, +21.7]   cluster 95% CI [+11.9, +22.6]   deff 1.47   b/c 81/12   McNemar p = 9.83e-14   clustered p = 3.32e-10
+                                   power: MDE(80%) 7.7 pts   power to detect 5 pts = 44%   <- underpowered; a null here is NOT evidence of no effect
+tourney N=16: judge - random       d = +21.0 pts   naive 95% CI [+14.9, +27.1]   cluster 95% CI [+14.6, +27.4]   deff 1.08   b/c 45/3   McNemar p = 1.31e-10   clustered p = 1.36e-10
+                                   power: MDE(80%) 9.2 pts   power to detect 5 pts = 33%   <- underpowered; a null here is NOT evidence of no effect
+
+============================================================================================================
+3. ORACLE CEILING   (a correct candidate EXISTS vs the judge FINDS it)
+   NOTE: for pruned arms this is pass@k over SURVIVORS, not over all N.
+   Only the baseline row is a clean best-of-N ceiling.
+
+baseline   N=1   ceiling  47.2%   selected  47.2%   gap  0.0 pts   capture 100.0%
+baseline   N=2   ceiling  59.0%   selected  57.0%   gap  2.0 pts   capture  96.6%
+baseline   N=4   ceiling  66.8%   selected  63.7%   gap  3.0 pts   capture  95.5%
+baseline   N=8   ceiling  75.8%   selected  68.5%   gap  7.2 pts   capture  90.4%
+baseline   N=16  ceiling  80.5%   selected  72.0%   gap  8.5 pts   capture  89.4%
+baseline   N=32  ceiling  87.0%   selected  75.0%   gap 12.0 pts   capture  86.2%
+
+rank       N=1   ceiling  46.2%   selected  46.2%   gap  0.0 pts   capture 100.0%
+rank       N=2   ceiling  55.2%   selected  55.0%   gap  0.2 pts   capture  99.5%
+rank       N=4   ceiling  64.5%   selected  62.0%   gap  2.5 pts   capture  96.1%
+rank       N=8   ceiling  70.8%   selected  65.8%   gap  5.0 pts   capture  92.9%
+rank       N=16  ceiling  76.5%   selected  68.5%   gap  8.0 pts   capture  89.5%
+
+random     N=1   ceiling  46.8%   selected  46.8%   gap  0.0 pts   capture 100.0%
+random     N=2   ceiling  54.8%   selected  53.0%   gap  1.7 pts   capture  96.8%
+random     N=4   ceiling  63.5%   selected  59.2%   gap  4.2 pts   capture  93.3%
+random     N=8   ceiling  69.0%   selected  66.0%   gap  3.0 pts   capture  95.7%
+random     N=16  ceiling  77.0%   selected  70.0%   gap  7.0 pts   capture  90.9%
+
+tourney    N=1   ceiling  47.8%   selected  47.8%   gap  0.0 pts   capture 100.0%
+tourney    N=2   ceiling  55.2%   selected  55.0%   gap  0.2 pts   capture  99.5%
+tourney    N=4   ceiling  62.5%   selected  59.2%   gap  3.2 pts   capture  94.8%
+tourney    N=8   ceiling  72.0%   selected  67.2%   gap  4.7 pts   capture  93.4%
+tourney    N=16  ceiling  77.5%   selected  70.5%   gap  7.0 pts   capture  91.0%
+
+============================================================================================================
+4. ARM CONTRASTS, PER N   (the pruning claims)
+
+N=1   rank - random                d = -0.5 pts   naive 95% CI [-1.7, +0.7]   cluster 95% CI [-1.7, +0.7]   deff 0.99   b/c 2/4   McNemar p = 0.688   clustered p = 0.415
+                                   power: MDE(80%) 1.7 pts   power to detect 5 pts = 100%
+                                   non-inferiority (margin 5 pts): lower bound -1.7 -> NON-INFERIOR   one-sided p = 1.1e-13
+                                   tokens 6138 vs 5872  (+4.5%, 95% CI [+3.3%, +5.8%])
+N=2   rank - random                d = +2.0 pts   naive 95% CI [-2.0, +6.0]   cluster 95% CI [-2.3, +6.3]   deff 1.14   b/c 38/30   McNemar p = 0.396   clustered p = 0.365
+                                   power: MDE(80%) 6.2 pts   power to detect 5 pts = 62%
+                                   non-inferiority (margin 5 pts): lower bound -2.3 -> NON-INFERIOR   one-sided p = 0.000769
+                                   tokens 11200 vs 11709  (-4.3%, 95% CI [-8.2%, -0.5%])
+N=4   rank - random                d = +2.8 pts   naive 95% CI [-1.1, +6.6]   cluster 95% CI [-1.1, +6.6]   deff 1.02   b/c 36/25   McNemar p = 0.2   clustered p = 0.164
+                                   power: MDE(80%) 5.5 pts   power to detect 5 pts = 72%
+                                   non-inferiority (margin 5 pts): lower bound -1.1 -> NON-INFERIOR   one-sided p = 4.36e-05
+                                   tokens 22520 vs 24104  (-6.6%, 95% CI [-9.3%, -3.8%])
+N=8   rank - random                d = -0.2 pts   naive 95% CI [-4.0, +3.5]   cluster 95% CI [-4.0, +3.5]   deff 0.96   b/c 29/30   McNemar p = 1   clustered p = 0.895
+                                   power: MDE(80%) 5.3 pts   power to detect 5 pts = 75%
+                                   non-inferiority (margin 5 pts): lower bound -4.0 -> NON-INFERIOR   one-sided p = 0.00614
+                                   tokens 44332 vs 48680  (-8.9%, 95% CI [-11.4%, -6.5%])
+N=16  rank - random                d = -1.5 pts   naive 95% CI [-7.1, +4.1]   cluster 95% CI [-7.3, +4.3]   deff 1.05   b/c 15/18   McNemar p = 0.728   clustered p = 0.613
+                                   power: MDE(80%) 8.3 pts   power to detect 5 pts = 39%   <- underpowered; a null here is NOT evidence of no effect
+                                   non-inferiority (margin 5 pts): lower bound -7.3 -> cannot claim parity   one-sided p = 0.119
+                                   tokens 86437 vs 95361  (-9.4%, 95% CI [-11.9%, -6.8%])
+
+N=1   rank - baseline              d = -1.0 pts   naive 95% CI [-4.5, +2.5]   cluster 95% CI [-4.4, +2.4]   deff 0.92   b/c 24/28   McNemar p = 0.678   clustered p = 0.565
+                                   power: MDE(80%) 4.9 pts   power to detect 5 pts = 82%
+                                   non-inferiority (margin 5 pts): lower bound -4.4 -> NON-INFERIOR   one-sided p = 0.0107
+                                   tokens 6138 vs 8238  (-25.5%, 95% CI [-29.6%, -21.4%])
+N=2   rank - baseline              d = -2.0 pts   naive 95% CI [-5.4, +1.4]   cluster 95% CI [-5.5, +1.5]   deff 1.07   b/c 20/28   McNemar p = 0.312   clustered p = 0.267
+                                   power: MDE(80%) 5.0 pts   power to detect 5 pts = 79%
+                                   non-inferiority (margin 5 pts): lower bound -5.5 -> cannot claim parity   one-sided p = 0.0479
+                                   tokens 11200 vs 16890  (-33.7%, 95% CI [-36.3%, -31.1%])
+N=4   rank - baseline              d = -1.8 pts   naive 95% CI [-5.5, +2.0]   cluster 95% CI [-5.6, +2.1]   deff 1.03   b/c 26/33   McNemar p = 0.435   clustered p = 0.371
+                                   power: MDE(80%) 5.5 pts   power to detect 5 pts = 73%
+                                   non-inferiority (margin 5 pts): lower bound -5.6 -> cannot claim parity   one-sided p = 0.0482
+                                   tokens 22520 vs 33840  (-33.5%, 95% CI [-35.6%, -31.3%])
+N=8   rank - baseline              d = -2.8 pts   naive 95% CI [-6.9, +1.4]   cluster 95% CI [-7.0, +1.5]   deff 1.07   b/c 30/41   McNemar p = 0.235   clustered p = 0.209
+                                   power: MDE(80%) 6.1 pts   power to detect 5 pts = 63%
+                                   non-inferiority (margin 5 pts): lower bound -7.0 -> cannot claim parity   one-sided p = 0.152
+                                   tokens 44332 vs 67278  (-34.1%, 95% CI [-35.7%, -32.6%])
+N=16  rank - baseline              d = -3.5 pts   naive 95% CI [-9.5, +2.5]   cluster 95% CI [-9.1, +2.1]   deff 0.88   b/c 15/22   McNemar p = 0.324   clustered p = 0.222
+                                   power: MDE(80%) 8.0 pts   power to detect 5 pts = 41%   <- underpowered; a null here is NOT evidence of no effect
+                                   non-inferiority (margin 5 pts): lower bound -9.1 -> cannot claim parity   one-sided p = 0.3
+                                   tokens 86437 vs 133186  (-35.1%, 95% CI [-36.8%, -33.4%])
+
+N=1   tourney - baseline           d = +0.5 pts   naive 95% CI [-3.2, +4.2]   cluster 95% CI [-3.5, +4.5]   deff 1.13   b/c 30/28   McNemar p = 0.896   clustered p = 0.806
+                                   power: MDE(80%) 5.7 pts   power to detect 5 pts = 69%
+                                   non-inferiority (margin 5 pts): lower bound -3.5 -> NON-INFERIOR   one-sided p = 0.00352
+                                   tokens 5810 vs 8238  (-29.5%, 95% CI [-33.3%, -25.6%])
+N=2   tourney - baseline           d = -2.0 pts   naive 95% CI [-5.6, +1.6]   cluster 95% CI [-5.5, +1.5]   deff 0.91   b/c 23/31   McNemar p = 0.341   clustered p = 0.257
+                                   power: MDE(80%) 4.9 pts   power to detect 5 pts = 81%
+                                   non-inferiority (margin 5 pts): lower bound -5.5 -> cannot claim parity   one-sided p = 0.0446
+                                   tokens 11275 vs 16890  (-33.2%, 95% CI [-35.8%, -30.7%])
+N=4   tourney - baseline           d = -4.5 pts   naive 95% CI [-8.8, -0.2]   cluster 95% CI [-8.8, -0.2]   deff 0.99   b/c 29/47   McNemar p = 0.0505   clustered p = 0.0383
+                                   power: MDE(80%) 6.1 pts   power to detect 5 pts = 63%
+                                   non-inferiority (margin 5 pts): lower bound -8.8 -> cannot claim parity   one-sided p = 0.409
+                                   tokens 22219 vs 33840  (-34.3%, 95% CI [-36.3%, -32.4%])
+N=8   tourney - baseline           d = -1.2 pts   naive 95% CI [-5.4, +2.9]   cluster 95% CI [-5.2, +2.7]   deff 0.91   b/c 33/38   McNemar p = 0.635   clustered p = 0.536
+                                   power: MDE(80%) 5.7 pts   power to detect 5 pts = 70%
+                                   non-inferiority (margin 5 pts): lower bound -5.2 -> cannot claim parity   one-sided p = 0.0318
+                                   tokens 45103 vs 67278  (-33.0%, 95% CI [-34.6%, -31.3%])
+N=16  tourney - baseline           d = -1.5 pts   naive 95% CI [-7.3, +4.3]   cluster 95% CI [-7.0, +4.0]   deff 0.88   b/c 16/19   McNemar p = 0.736   clustered p = 0.591
+                                   power: MDE(80%) 7.8 pts   power to detect 5 pts = 43%   <- underpowered; a null here is NOT evidence of no effect
+                                   non-inferiority (margin 5 pts): lower bound -7.0 -> cannot claim parity   one-sided p = 0.105
+                                   tokens 88994 vs 133186  (-33.2%, 95% CI [-34.9%, -31.4%])
+
+N=1   random - baseline            d = -0.5 pts   naive 95% CI [-4.0, +3.0]   cluster 95% CI [-4.0, +3.0]   deff 0.96   b/c 25/27   McNemar p = 0.89   clustered p = 0.778
+                                   power: MDE(80%) 5.0 pts   power to detect 5 pts = 80%
+                                   non-inferiority (margin 5 pts): lower bound -4.0 -> NON-INFERIOR   one-sided p = 0.00564
+                                   tokens 5872 vs 8238  (-28.7%, 95% CI [-32.6%, -24.8%])
+N=2   random - baseline            d = -4.0 pts   naive 95% CI [-8.0, +0.0]   cluster 95% CI [-8.1, +0.1]   deff 1.03   b/c 26/42   McNemar p = 0.0681   clustered p = 0.0561
+                                   power: MDE(80%) 5.9 pts   power to detect 5 pts = 67%
+                                   non-inferiority (margin 5 pts): lower bound -8.1 -> cannot claim parity   one-sided p = 0.316
+                                   tokens 11709 vs 16890  (-30.7%, 95% CI [-33.7%, -27.6%])
+N=4   random - baseline            d = -4.5 pts   naive 95% CI [-8.5, -0.5]   cluster 95% CI [-8.5, -0.5]   deff 0.99   b/c 25/43   McNemar p = 0.0385   clustered p = 0.0284
+                                   power: MDE(80%) 5.8 pts   power to detect 5 pts = 68%
+                                   non-inferiority (margin 5 pts): lower bound -8.5 -> cannot claim parity   one-sided p = 0.404
+                                   tokens 24104 vs 33840  (-28.8%, 95% CI [-31.2%, -26.4%])
+N=8   random - baseline            d = -2.5 pts   naive 95% CI [-6.5, +1.5]   cluster 95% CI [-6.2, +1.2]   deff 0.83   b/c 28/38   McNemar p = 0.268   clustered p = 0.18
+                                   power: MDE(80%) 5.2 pts   power to detect 5 pts = 77%
+                                   non-inferiority (margin 5 pts): lower bound -6.2 -> cannot claim parity   one-sided p = 0.0899
+                                   tokens 48680 vs 67278  (-27.6%, 95% CI [-29.9%, -25.3%])
+N=16  random - baseline            d = -2.0 pts   naive 95% CI [-8.0, +4.0]   cluster 95% CI [-7.7, +3.7]   deff 0.89   b/c 17/21   McNemar p = 0.627   clustered p = 0.494
+                                   power: MDE(80%) 8.2 pts   power to detect 5 pts = 40%   <- underpowered; a null here is NOT evidence of no effect
+                                   non-inferiority (margin 5 pts): lower bound -7.7 -> cannot claim parity   one-sided p = 0.152
+                                   tokens 95361 vs 133186  (-28.4%, 95% CI [-30.7%, -26.1%])
+
+============================================================================================================
+5. POOLED ACROSS N
+
+   chunk-weighted: every (question, N, chunk) observation counts once, so an N
+   with more chunks pulls harder. equal-weight: each N contributes equally.
+
+pooled rank - random (chunk-wtd)   d = +0.7 pts   naive 95% CI [-0.9, +2.4]   cluster 95% CI [-1.0, +2.4]   deff 1.05   b/c 120/107   McNemar p = 0.426   clustered p = 0.403
+                                   power: MDE(80%) 2.4 pts   power to detect 5 pts = 100%
+                                   equal-weight per N: d = +0.5 pts (from 5 cells: -0.5, +2.0, +2.8, -0.2, -1.5)
+
+pooled rank - baseline (chunk-wtd) d = -2.1 pts   naive 95% CI [-3.8, -0.3]   cluster 95% CI [-4.3, +0.1]   deff 1.52   b/c 115/152   McNemar p = 0.0274   clustered p = 0.0675
+                                   power: MDE(80%) 3.1 pts   power to detect 5 pts = 99%
+                                   equal-weight per N: d = -2.2 pts (from 5 cells: -1.0, -2.0, -1.8, -2.8, -3.5)
+
+pooled tourney - baseline (chunk-wtd) d = -1.8 pts   naive 95% CI [-3.6, +0.1]   cluster 95% CI [-4.2, +0.6]   deff 1.64   b/c 131/163   McNemar p = 0.0704   clustered p = 0.147
+                                   power: MDE(80%) 3.4 pts   power to detect 5 pts = 98%
+                                   equal-weight per N: d = -1.7 pts (from 5 cells: +0.5, -2.0, -4.5, -1.2, -1.5)
+
+pooled random - baseline (chunk-wtd) d = -2.8 pts   naive 95% CI [-4.6, -0.9]   cluster 95% CI [-4.9, -0.6]   deff 1.32   b/c 121/171   McNemar p = 0.00406   clustered p = 0.0112
+                                   power: MDE(80%) 3.1 pts   power to detect 5 pts = 100%
+                                   equal-weight per N: d = -2.7 pts (from 5 cells: -0.5, -4.0, -4.5, -2.5, -2.0)
+
+============================================================================================================
+6. TOKEN-MATCHED CONTRASTS   (equal BUDGET, not equal N)
+
+   Comparing arms at the same N compares unequal compute: a pruned arm at
+   N=16 can cost half of baseline N=16. The inference-scaling question is
+   'at a fixed budget, which wins?', so each pruned cell is matched to the
+   baseline N whose token cost is closest, and paired at the question level.
+
+rank N=1 vs baseline N=1           d = -1.0 pts   95% CI [-4.4, +2.4]   win/loss 16/20   p = 0.565   sign p = 0.618
+                                   tokens 6138 vs 8238 (-25.5% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -4.4 -> NON-INFERIOR   one-sided p = 0.0107
+                                   WARNING: -25% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 4.9 pts   power to detect 5 pts = 82%
+rank N=2 vs baseline N=1           d = +7.8 pts   95% CI [+3.7, +11.8]   win/loss 32/8   p = 0.000172   sign p = 0.000182
+                                   tokens 11200 vs 8238 (+36.0% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound +3.7 -> NON-INFERIOR   one-sided p = 3.18e-10
+                                   WARNING: +36% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 5.8 pts   power to detect 5 pts = 68%
+rank N=4 vs baseline N=2           d = +5.0 pts   95% CI [+0.7, +9.3]   win/loss 22/10   p = 0.0242   sign p = 0.0501
+                                   tokens 22520 vs 16890 (+33.3% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound +0.7 -> NON-INFERIOR   one-sided p = 3.3e-06
+                                   WARNING: +33% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.2 pts   power to detect 5 pts = 62%
+rank N=8 vs baseline N=4           d = +2.0 pts   95% CI [-1.9, +5.9]   win/loss 17/13   p = 0.317   sign p = 0.585
+                                   tokens 44332 vs 33840 (+31.0% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -1.9 -> NON-INFERIOR   one-sided p = 0.000233
+                                   WARNING: +31% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 5.6 pts   power to detect 5 pts = 71%
+rank N=16 vs baseline N=8          d = +0.0 pts   95% CI [-4.8, +4.8]   win/loss 17/18   p = 1   sign p = 1
+                                   tokens 86437 vs 67278 (+28.5% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -4.8 -> NON-INFERIOR   one-sided p = 0.0201
+                                   WARNING: +28% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.8 pts   power to detect 5 pts = 54%
+
+random N=1 vs baseline N=1         d = -0.5 pts   95% CI [-4.0, +3.0]   win/loss 16/19   p = 0.778   sign p = 0.736
+                                   tokens 5872 vs 8238 (-28.7% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -4.0 -> NON-INFERIOR   one-sided p = 0.00564
+                                   WARNING: -29% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 5.0 pts   power to detect 5 pts = 80%
+random N=2 vs baseline N=1         d = +5.8 pts   95% CI [+1.2, +10.3]   win/loss 32/14   p = 0.0134   sign p = 0.0114
+                                   tokens 11709 vs 8238 (+42.1% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound +1.2 -> NON-INFERIOR   one-sided p = 1.91e-06
+                                   WARNING: +42% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.5 pts   power to detect 5 pts = 58%
+random N=4 vs baseline N=2         d = +2.2 pts   95% CI [-2.0, +6.5]   win/loss 22/15   p = 0.305   sign p = 0.324
+                                   tokens 24104 vs 16890 (+42.7% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -2.0 -> NON-INFERIOR   one-sided p = 0.000474
+                                   WARNING: +43% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.1 pts   power to detect 5 pts = 63%
+random N=8 vs baseline N=4         d = +2.2 pts   95% CI [-1.4, +5.9]   win/loss 19/13   p = 0.224   sign p = 0.377
+                                   tokens 48680 vs 33840 (+43.9% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -1.4 -> NON-INFERIOR   one-sided p = 4.43e-05
+                                   WARNING: +44% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 5.2 pts   power to detect 5 pts = 77%
+random N=16 vs baseline N=8        d = +1.5 pts   95% CI [-3.7, +6.7]   win/loss 22/12   p = 0.575   sign p = 0.121
+                                   tokens 95361 vs 67278 (+41.7% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -3.7 -> NON-INFERIOR   one-sided p = 0.00762
+                                   WARNING: +42% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 7.5 pts   power to detect 5 pts = 46%   <- underpowered
+
+tourney N=1 vs baseline N=1        d = +0.5 pts   95% CI [-3.5, +4.5]   win/loss 20/17   p = 0.806   sign p = 0.743
+                                   tokens 5810 vs 8238 (-29.5% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -3.5 -> NON-INFERIOR   one-sided p = 0.00352
+                                   WARNING: -29% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 5.7 pts   power to detect 5 pts = 69%
+tourney N=2 vs baseline N=1        d = +7.8 pts   95% CI [+3.8, +11.7]   win/loss 30/6   p = 0.000107   sign p = 6.96e-05
+                                   tokens 11275 vs 8238 (+36.9% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound +3.8 -> NON-INFERIOR   one-sided p = 9.24e-11
+                                   WARNING: +37% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 5.6 pts   power to detect 5 pts = 71%
+tourney N=4 vs baseline N=2        d = +2.2 pts   95% CI [-2.5, +7.0]   win/loss 24/13   p = 0.351   sign p = 0.0989
+                                   tokens 22219 vs 16890 (+31.6% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -2.5 -> NON-INFERIOR   one-sided p = 0.00133
+                                   WARNING: +32% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.8 pts   power to detect 5 pts = 54%
+tourney N=8 vs baseline N=4        d = +3.5 pts   95% CI [-0.9, +7.9]   win/loss 23/18   p = 0.119   sign p = 0.533
+                                   tokens 45103 vs 33840 (+33.3% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -0.9 -> NON-INFERIOR   one-sided p = 7.8e-05
+                                   WARNING: +33% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 6.3 pts   power to detect 5 pts = 60%
+tourney N=16 vs baseline N=8       d = +2.0 pts   95% CI [-3.0, +7.0]   win/loss 22/15   p = 0.429   sign p = 0.324
+                                   tokens 88994 vs 67278 (+32.3% budget mismatch)
+                                   non-inferiority (margin 5 pts): lower bound -3.0 -> NON-INFERIOR   one-sided p = 0.00283
+                                   WARNING: +32% budget mismatch -- this cell is NOT token-matched; the verdict above is not a matched-budget result
+                                   power: MDE(80%) 7.1 pts   power to detect 5 pts = 51%
+
+============================================================================================================
+Clusters are questions. deff > 1 means the naive interval was too narrow.
+
+============================================================================================================
+8. CROSS-CONFIG SUMMARY   (the stable estimate: average over the grid)
+
+   A single config is one noisy draw. Quoting the best cell overstates the
+   effect because it is the maximum of many noisy cells. These are means.
+
+   arm          N  configs  acc mean    min    max    tokens  vs base
+   baseline     1        2     47.2%     47     47     8,238     0.0%
+   rank         1        2     46.5%     46     47     6,207   -24.7%
+   random       1        2     46.4%     46     47     5,908   -28.3%
+   tourney      1        2     46.6%     46     48     5,889   -28.5%
+
+   baseline     2        2     57.0%     57     57    16,890     0.0%
+   rank         2        2     53.8%     52     55    11,540   -31.7%
+   random       2        2     53.4%     53     54    12,079   -28.5%
+   tourney      2        2     55.0%     55     55    11,493   -32.0%
+
+   baseline     4        2     63.7%     64     64    33,840     0.0%
+   rank         4        2     62.6%     62     63    22,832   -32.5%
+   random       4        2     59.6%     59     60    24,373   -28.0%
+   tourney      4        2     60.5%     59     62    22,944   -32.2%
+
+   baseline     8        2     68.5%     68     68    67,278     0.0%
+   rank         8        2     65.8%     66     66    45,290   -32.7%
+   random       8        2     65.4%     65     66    48,357   -28.1%
+   tourney      8        2     66.2%     65     67    45,894   -31.8%
+
+   baseline    16        2     72.0%     72     72   133,186     0.0%
+   rank        16        2     67.0%     66     68    87,842   -34.0%
+   random      16        2     68.0%     66     70    94,719   -28.9%
+   tourney     16        2     69.5%     68     70    90,472   -32.1%
+
+   baseline    32        2     75.0%     75     75   264,452     0.0%
+
+   ORACLE CEILING COLLAPSE   (what pruning costs you before the judge acts)
+
+   Pruning discards candidates, so a correct answer may never reach the judge.
+   A smaller judge gap on a pruned arm is less headroom, not better selection.
+
+   arm          N   ceiling  selected  judge gap  ceiling vs base
+   baseline     1     47.2%     47.2%       0.0p             0.0p
+   rank         1     46.5%     46.5%       0.0p            -0.7p
+   random       1     46.4%     46.4%       0.0p            -0.9p
+   tourney      1     46.6%     46.6%       0.0p            -0.6p
+
+   baseline     2     59.0%     57.0%       2.0p             0.0p
+   rank         2     54.9%     53.8%       1.1p            -4.1p
+   random       2     55.1%     53.4%       1.8p            -3.9p
+   tourney      2     55.6%     55.0%       0.6p            -3.4p
+
+   baseline     4     66.8%     63.7%       3.0p             0.0p
+   rank         4     65.6%     62.6%       3.0p            -1.1p
+   random       4     63.5%     59.6%       3.9p            -3.2p
+   tourney      4     63.5%     60.5%       3.0p            -3.2p
+
+   baseline     8     75.8%     68.5%       7.2p             0.0p
+   rank         8     71.2%     65.8%       5.5p            -4.5p
+   random       8     70.0%     65.4%       4.6p            -5.8p
+   tourney      8     72.2%     66.2%       6.0p            -3.5p
+
+   baseline    16     80.5%     72.0%       8.5p             0.0p
+   rank        16     76.5%     67.0%       9.5p            -4.0p
+   random      16     76.8%     68.0%       8.8p            -3.7p
+   tourney     16     77.2%     69.5%       7.7p            -3.3p
+
+   baseline    32     87.0%     75.0%      12.0p             0.0p
+
+
+============================================================================================================
+9. ISO-TOKEN CONTRASTS   (baseline curve INTERPOLATED to each cell's actual spend)
+
+   Section 6 snaps each cell to the nearest baseline N, leaving budget gaps up to
+   +49%. Here the baseline accuracy-vs-token curve is log-interpolated to the exact
+   budget each cell spent, so there is no mismatch left to warn about.
+
+   baseline stop-tail correction: 26.25% of generated tokens
+   fall after the first </answer>, which the baseline is charged for and the arms
+   are not (no stop string on the baseline; stop=['</answer>'] on the arms).
+
+      N  baseline acc   tokens raw  tokens corrected
+      1         47.2%        8,238             6,073
+      2         57.0%       16,890            12,560
+      4         63.7%       33,840            25,181
+      8         68.5%       67,278            49,959
+     16         72.0%      133,186            98,549
+     32         75.0%      264,452           195,176
+
+   RAW baseline: arm accuracy minus interpolated baseline accuracy
+     over 30 equal-N cells:  mean +0.00 pts   median -0.28 pts   positive 13/30   (negative 17)
+       plan=1000  mean -0.53 pts   (15 cells)
+       plan=2500  mean +0.53 pts   (15 cells)
+
+   STOP-CORRECTED baseline: arm accuracy minus interpolated baseline accuracy
+     over 30 equal-N cells:  mean -2.12 pts   median -1.88 pts   positive 2/30   (negative 28)
+       plan=1000  mean -2.66 pts   (15 cells)
+       plan=2500  mean -1.58 pts   (15 cells)
+
+   Read together: against the raw baseline the pruned arms are roughly break-even at
+   equal budget; against the stop-corrected baseline they are negative at every plan
+   level. The apparent iso-token parity depends on charging the baseline for tokens
+   the arms never emit.
+
+============================================================================================================
+7. MULTIPLE COMPARISONS   (corrected WITHIN each hypothesis family)
+
+   Families are corrected separately. Pooling them would let the enormous
+   judge-vs-random effects (p ~ 1e-9) inflate m and consume the alpha that
+   the borderline arm contrasts actually need.
+
+   family              tests  p<.05  by chance   Holm    BH
+   arm-contrast           40      5          2      0     0
+   judge-vs-random        29     29          1     29    29
+   non-inferiority        70     45          4     19    40
+   pooled                  8      3          0      0     2
+   token-matched          30      9          2      3     5
+
+   15 nominally-significant results do NOT survive BH within their family.
+   Do not cite these on their own:
+     p=0.0134    [token-matched] plan=2500,prune=2.0  random N=2 vs baseline N=1
+     p=0.0205    [arm-contrast] plan=1000,prune=2.0  N=16  random - baseline
+     p=0.0242    [token-matched] plan=2500,prune=2.0  rank N=4 vs baseline N=2
+     p=0.0284    [arm-contrast] plan=2500,prune=2.0  N=4   random - baseline
+     p=0.0318    [non-inferiority] plan=2500,prune=2.0  [NI] N=8   tourney - baseline
+     p=0.0358    [arm-contrast] plan=1000,prune=2.0  N=2   rank - baseline
+     p=0.0383    [arm-contrast] plan=2500,prune=2.0  N=4   tourney - baseline
+     p=0.0391    [token-matched] plan=1000,prune=2.0  rank N=2 vs baseline N=1
+     p=0.0412    [pooled] plan=1000,prune=2.0  pooled rank - baseline (chunk-wtd)
+     p=0.0442    [arm-contrast] plan=1000,prune=2.0  N=16  rank - baseline
+     p=0.0446    [non-inferiority] plan=2500,prune=2.0  [NI] N=2   tourney - baseline
+     p=0.0456    [token-matched] plan=1000,prune=2.0  tourney N=4 vs baseline N=2
+     p=0.0463    [non-inferiority] plan=1000,prune=2.0  [NI] N=2   rank - random
+     p=0.0479    [non-inferiority] plan=2500,prune=2.0  [NI] N=2   rank - baseline
+     p=0.0482    [non-inferiority] plan=2500,prune=2.0  [NI] N=4   rank - baseline
+
+   51 results survive the strict Holm correction; these are the safe ones to quote.

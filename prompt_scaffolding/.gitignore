@@ -2,3 +2,11 @@
 *.json
 slurm*
 .ipynb_checkpoints
+# Matches at any depth, so archived runs under runs/<date>_<name>/ keep their logs
+# out of the index too (the root .gitignore rule only matched the old top-level path).
+sweep_logs/
+
+# Archived sweep outputs: bulky result JSONs, their PNGs and analyses. ANCHORED to
+# runs/ on purpose -- a bare "archive/" would also match the tracked top-level
+# archive/ (133 committed files) at any depth and start ignoring new files there.
+/runs/archive/

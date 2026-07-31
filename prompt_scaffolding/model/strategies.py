@@ -1,4 +1,4 @@
-from model.utils import extract_content
+from model.utils import extract_content, draft_messages
 from model.rank import ranker
 
 from abc import ABC, abstractmethod
@@ -27,7 +27,8 @@ class Strategy(ABC):
         self.prompt_strategy = prompt_strategy
 
         self.ranker = ranker("Partial Solutions", self.llm, self.seed)
-    
+
+
     def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=100, max_plan_tokens=1000, prune_ratio=1, previous_responses=None, ranked_indexes=None, reasonings=None):
         # TODO 3/27/26: Get 8 full solutions(full solutions) --> and then truncate each of the full solutions so no need to rerun "generate_prompts"
             # TODO: to do the above, tokenize full solutions --> then truncate to first 500 tokens
@@ -54,7 +55,7 @@ class Strategy(ABC):
         # generate strategy results without thinking
         print("Generating Initial Prompts", file=sys.stderr)
         outputs = self.llm.chat(prompts, sampling_params=sampling_params, chat_template_kwargs={"enable_thinking": False})
-        total_tokens = [sum([len(plan.token_ids) for plan in request_output.outputs]) for request_output in outputs]
+        total_tokens = [sum(len(plan.token_ids) for plan in request_output.outputs) for request_output in outputs]
 
         # loop through the different questions and combine the generated ideas with separator tokens
         generated_prompts = []
@@ -137,11 +138,38 @@ class UserStrategy(Strategy):
 
         return {"generated_prompts": new_prompts, "indexes": [range(len(new_prompts[0]))]*len(user_prompts), "reasonings": [], "generated_diverse_prompts": new_prompts, "total_tokens": [0] * len(user_prompts)}
 
+def first_k_unique(ordering, labels, k):
+    """Take the first `k` plan indices of DISTINCT clusters, walking `ordering`
+    (a full permutation of a question's plan indices, in a path's preference order).
+
+    A plan whose cluster (labels[idx]) is already represented is skipped and held
+    aside. If the pool has fewer than k distinct clusters, the held-aside duplicates
+    backfill (in preference order) so exactly min(k, len(ordering)) indices come back.
+    """
+    seen = set()
+    chosen = []
+    dupes = []
+    for idx in ordering:
+        lab = labels[idx] if idx < len(labels) else idx
+        if lab in seen:
+            dupes.append(idx)
+        else:
+            seen.add(lab)
+            chosen.append(idx)
+            if len(chosen) >= k:
+                return chosen
+    for idx in dupes:                      # fewer than k clusters exist -> backfill
+        if len(chosen) >= k:
+            break
+        chosen.append(idx)
+    return chosen[:k]
+
+
 class CompletionStrategy(Strategy):
     def __init__(self, llm, seed=42):
         super().__init__(llm, "", "CompletionStrategy", seed)
-    
-    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=500, prune_ratio=1, previous_responses=None, group_size=4):
+
+    def generate_prompts(self, user_prompts, best_of_n, temperature, max_selection_tokens=16000, max_plan_tokens=500, prune_ratio=1, previous_responses=None, group_size=4, diverse=False):
         new_prompts = []
         base_tokens = []
         
@@ -149,13 +177,8 @@ class CompletionStrategy(Strategy):
         if previous_responses is None:
             sampling_params = SamplingParams(n=best_of_n, temperature=temperature, top_p=0.95, max_tokens=max_plan_tokens, seed=self.seed)
             print("Generating Completion Initial Response", file=sys.stderr)
-            outputs = self.llm.chat([[
-                {"role": "user", "content": (
-                    f"{prompt}\n\n"
-                    "First, write out your step-by-step thoughts on how to solve this in plain text without using any tags. "
-                    "Then, provide your final answer strictly inside <answer></answer> tags."
-                )}
-            ] for prompt in user_prompts], sampling_params=sampling_params)
+            outputs = self.llm.chat([draft_messages(prompt) for prompt in user_prompts],
+                                    sampling_params=sampling_params)
 
             for request_output in outputs:
                 new_prompts.append([single_output.text for single_output in request_output.outputs])
@@ -177,32 +200,65 @@ class CompletionStrategy(Strategy):
                         truncated_text = tokenizer.decode(encoded[:max_plan_tokens])
                         prompt_texts.append(truncated_text)
                         prompt_tokens += max_plan_tokens
-                        
+
                 new_prompts.append(prompt_texts)
                 base_tokens.append(prompt_tokens)
-                
+
         number_choices = int(max(1, best_of_n // prune_ratio))
-        
+        n_prompts = len(user_prompts)
+
+        # DIVERSE (best-of-k): cluster each question's plans by approach ONCE, so every
+        # path can prune to k UNIQUE approaches instead of the top-k by score. The one
+        # clustering call is charged to every arm that uses it (each arm's standalone
+        # cost includes it). Non-diverse leaves all this untouched -> bon is unchanged.
+        if diverse:
+            cluster_labels, cluster_tokens = self.ranker.cluster(user_prompts, new_prompts, max_selection_tokens)
+        else:
+            cluster_labels, cluster_tokens = None, [0] * n_prompts
+
         # 2. PATH 1: Ranked Pruning
         ranked_indexes, reasonings, rank_tokens = self.ranker.rank(user_prompts, new_prompts, max_selection_tokens)
-        final_ranked_indexes = [indices[:number_choices] for indices in ranked_indexes]
+        if diverse:
+            # ranked_indexes[i] is a full permutation -> first-k-unique directly.
+            final_ranked_indexes = [first_k_unique(ranked_indexes[i], cluster_labels[i], number_choices) for i in range(n_prompts)]
+        else:
+            final_ranked_indexes = [indices[:number_choices] for indices in ranked_indexes]
         ranked_diverse_prompts = [[new_prompts[i][idx] for idx in diverse_indexes if idx < len(new_prompts[i])] for i, diverse_indexes in enumerate(final_ranked_indexes)]
-        
+
         # 3. PATH 2: Random Pruning
-        final_random_indexes = [random.sample(range(len(new_prompts[i])), min(number_choices, len(new_prompts[i]))) for i in range(len(user_prompts))]
+        if diverse:
+            # first-k-unique over a full RANDOM permutation (unique approaches, random order)
+            final_random_indexes = [first_k_unique(random.sample(range(len(new_prompts[i])), len(new_prompts[i])), cluster_labels[i], number_choices) for i in range(n_prompts)]
+        else:
+            final_random_indexes = [random.sample(range(len(new_prompts[i])), min(number_choices, len(new_prompts[i]))) for i in range(n_prompts)]
         random_diverse_prompts = [[new_prompts[i][idx] for idx in diverse_indexes] for i, diverse_indexes in enumerate(final_random_indexes)]
-        
+
         # 4. PATH 3: Tournament Pruning
         tourney_indexes, tourney_tokens = self.ranker.tourney_rank(user_prompts, new_prompts, group_size, number_choices)
-        tourney_diverse_prompts = [[new_prompts[i][idx] for idx in diverse_indexes if idx < len(new_prompts[i])] for i, diverse_indexes in enumerate(tourney_indexes)]
-        
+        if diverse:
+            # tourney only yields k survivors; extend to a full ordering (survivors first,
+            # then the rest in quality-rank order) so dedup has spares to backfill from.
+            final_tourney_indexes = []
+            for i in range(n_prompts):
+                surv = list(tourney_indexes[i])
+                tail = [j for j in ranked_indexes[i] if j not in surv]
+                final_tourney_indexes.append(first_k_unique(surv + tail, cluster_labels[i], number_choices))
+        else:
+            final_tourney_indexes = tourney_indexes
+        tourney_diverse_prompts = [[new_prompts[i][idx] for idx in diverse_indexes if idx < len(new_prompts[i])] for i, diverse_indexes in enumerate(final_tourney_indexes)]
+
+        # Per-arm selection cost. In diverse mode each arm also bears the one clustering call.
+        rank_cost = [rank_tokens[i] + cluster_tokens[i] for i in range(n_prompts)] if diverse else rank_tokens
+        random_cost = [cluster_tokens[i] for i in range(n_prompts)] if diverse else [0] * n_prompts
+        tourney_cost = [tourney_tokens[i] + cluster_tokens[i] for i in range(n_prompts)] if diverse else tourney_tokens
+
         # Return all paths and base generation tokens
         return {
             "base_prompts": new_prompts,
             "base_tokens": base_tokens,
             "paths": {
-                "rank": {"prompts": ranked_diverse_prompts, "tokens": rank_tokens},
-                "random": {"prompts": random_diverse_prompts, "tokens": [0]*len(user_prompts)},
-                "tourney": {"prompts": tourney_diverse_prompts, "tokens": tourney_tokens}
+                "rank": {"prompts": ranked_diverse_prompts, "tokens": rank_cost},
+                "random": {"prompts": random_diverse_prompts, "tokens": random_cost},
+                "tourney": {"prompts": tourney_diverse_prompts, "tokens": tourney_cost}
             }
         }

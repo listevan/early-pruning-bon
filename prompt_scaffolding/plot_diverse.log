@@ -1,0 +1,35 @@
+================================================================
+Run directory:                  /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse
+Found Baseline (None Strategy): 2026-05-28_14-04-13_baseline_bon_1_2_4_8_16_strat_None_plan_4000_prune_2.json
+================================================================
+Running plot generation for:
+ -> 2026-07-24_09-21-52_rank_bon_1_2_4_8_16_strat_CompletionStrategy_plan_2500_prune_2.0_diverse.json
+Saved accuracy plot layout to: /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse/2026-07-24_09-21-52_rank_bon_1_2_4_8_16_strat_CompletionStrategy_plan_2500_prune_2.0_diverse_accuracy_grid_comparison.png
+Saved selection efficiency layout to: /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse/2026-07-24_09-21-52_rank_bon_1_2_4_8_16_strat_CompletionStrategy_plan_2500_prune_2.0_diverse_selection_accuracy_grid.png
+----------------------------------------------------------------
+Running plot generation for:
+ -> 2026-07-24_09-22-05_random_bon_1_2_4_8_16_strat_CompletionStrategy_plan_2500_prune_2.0_diverse.json
+Saved accuracy plot layout to: /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse/2026-07-24_09-22-05_random_bon_1_2_4_8_16_strat_CompletionStrategy_plan_2500_prune_2.0_diverse_accuracy_grid_comparison.png
+Saved selection efficiency layout to: /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse/2026-07-24_09-22-05_random_bon_1_2_4_8_16_strat_CompletionStrategy_plan_2500_prune_2.0_diverse_selection_accuracy_grid.png
+----------------------------------------------------------------
+Running plot generation for:
+ -> 2026-07-24_09-22-18_tourney_bon_1_2_4_8_16_strat_CompletionStrategy_plan_2500_prune_2.0_diverse.json
+Saved accuracy plot layout to: /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse/2026-07-24_09-22-18_tourney_bon_1_2_4_8_16_strat_CompletionStrategy_plan_2500_prune_2.0_diverse_accuracy_grid_comparison.png
+Saved selection efficiency layout to: /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse/2026-07-24_09-22-18_tourney_bon_1_2_4_8_16_strat_CompletionStrategy_plan_2500_prune_2.0_diverse_selection_accuracy_grid.png
+----------------------------------------------------------------
+Running plot generation for:
+ -> 2026-07-24_11-27-38_rank_bon_1_2_4_8_16_strat_CompletionStrategy_plan_1000_prune_2.0_diverse.json
+Saved accuracy plot layout to: /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse/2026-07-24_11-27-38_rank_bon_1_2_4_8_16_strat_CompletionStrategy_plan_1000_prune_2.0_diverse_accuracy_grid_comparison.png
+Saved selection efficiency layout to: /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse/2026-07-24_11-27-38_rank_bon_1_2_4_8_16_strat_CompletionStrategy_plan_1000_prune_2.0_diverse_selection_accuracy_grid.png
+----------------------------------------------------------------
+Running plot generation for:
+ -> 2026-07-24_11-27-51_random_bon_1_2_4_8_16_strat_CompletionStrategy_plan_1000_prune_2.0_diverse.json
+Saved accuracy plot layout to: /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse/2026-07-24_11-27-51_random_bon_1_2_4_8_16_strat_CompletionStrategy_plan_1000_prune_2.0_diverse_accuracy_grid_comparison.png
+Saved selection efficiency layout to: /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse/2026-07-24_11-27-51_random_bon_1_2_4_8_16_strat_CompletionStrategy_plan_1000_prune_2.0_diverse_selection_accuracy_grid.png
+----------------------------------------------------------------
+Running plot generation for:
+ -> 2026-07-24_11-28-04_tourney_bon_1_2_4_8_16_strat_CompletionStrategy_plan_1000_prune_2.0_diverse.json
+Saved accuracy plot layout to: /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse/2026-07-24_11-28-04_tourney_bon_1_2_4_8_16_strat_CompletionStrategy_plan_1000_prune_2.0_diverse_accuracy_grid_comparison.png
+Saved selection efficiency layout to: /u/sl212/CS497/prompt_scaffolding/runs/2026-07-24_bok_diverse/2026-07-24_11-28-04_tourney_bon_1_2_4_8_16_strat_CompletionStrategy_plan_1000_prune_2.0_diverse_selection_accuracy_grid.png
+----------------------------------------------------------------
+All plotting tasks completed.

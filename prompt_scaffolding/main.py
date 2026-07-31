@@ -33,9 +33,9 @@ def parse_args():
         help="Difficulty level or stage of the dataset (default: 6)"
     )
     parser.add_argument(
-        "--num_examples", 
-        type=int, 
-        default=100, 
+        "--num_examples",
+        type=int,
+        default=30,
         help="Number of examples to process (default: 30)"
     )
 
@@ -78,12 +78,25 @@ def parse_args():
         help="Number of GPUs to use for Data Parallelism"
     )
     parser.add_argument(
-        "--baseline", 
-        action="store_true", 
+        "--baseline",
+        action="store_true",
         help="Run baseline generation (no strategy)."
     )
     parser.add_argument(
-        "--cache_fn", 
+        "--regen",
+        action="store_true",
+        help="After pruning to bon // prune_ratio survivors, regenerate back to `bon` "
+             "completions, distributed across the survivors evenly with the remainder "
+             "to the top-ranked ones (even_top_allocation)."
+    )
+    parser.add_argument(
+        "--diverse",
+        action="store_true",
+        help="Best-of-k: prune to k UNIQUE plans (LLM-clustered distinct approaches) "
+             "rather than the top-k by score, before regenerating. Set by main_diverse.py."
+    )
+    parser.add_argument(
+        "--cache_fn",
         type=str, 
         default="", 
         help="Path to raw baseline cache file."
@@ -91,8 +104,7 @@ def parse_args():
 
     return parser.parse_args()
 
-if __name__ == '__main__':
-    args = parse_args()
+def run(args):
     # dataset hyperparameters
     dataset_type = args.dataset_type
     level = args.level
@@ -142,12 +154,28 @@ if __name__ == '__main__':
     else:
         previous_responses = None
 
+    # The baseline cache is keyed by bon -> list of chunks, each chunk indexed by prompt.
+    # reasoning_gym is size-independent (the first `num_examples` questions of a larger
+    # dataset are identical for a fixed seed), so a 100-prompt cache can be reused for a
+    # 30-example run by slicing every chunk down to the first `num_examples` prompts.
+    if previous_responses is not None:
+        cache_len = min((len(chunk) for chunks in previous_responses.values() for chunk in chunks), default=0)
+        if cache_len < num_examples:
+            print(f"Error: cache {args.cache_fn} has only {cache_len} prompts but num_examples={num_examples}.", file=sys.stderr)
+            sys.exit(1)
+        if cache_len > num_examples:
+            print(f"Slicing cache from {cache_len} to first {num_examples} prompts.", file=sys.stderr)
+            previous_responses = {
+                bon: [chunk[:num_examples] for chunk in chunks]
+                for bon, chunks in previous_responses.items()
+            }
+
     data = reasoning_gym.create_dataset(dataset_type, size=num_examples, min_numbers=level, max_numbers=level, seed=seed)
     # load the questions
     prompts = [entry["question"] for entry in data]
 
     # generate responses
-    outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, max_plan_tokens=max_plan_tokens, strategy=strategy, prune_ratio=prune_ratio, previous_responses=previous_responses, group_size=group_size, active_paths=active_paths)
+    outputs = llm.generate_responses(prompts, best_of_ns=best_of_ns, temperature=temperature, max_tokens=16384, max_plan_tokens=max_plan_tokens, strategy=strategy, prune_ratio=prune_ratio, previous_responses=previous_responses, group_size=group_size, active_paths=active_paths, regen=args.regen, diverse=args.diverse)
     
     # Intercept and save the raw baseline cache if in baseline mode
     raw_base = outputs.pop("raw_base_responses", None)
@@ -219,7 +247,7 @@ if __name__ == '__main__':
             
             all_dataset_tokens = []
             total_score = 0
-            
+
             for i in range(num_examples):
                 scores = [res["score"] for res in agg_results[i]]
                 tokens = prompt_token_usage[i]
@@ -228,6 +256,8 @@ if __name__ == '__main__':
                 mean_score = statistics.mean(scores)
                 total_score += mean_score
 
+                # DECODE-ONLY: every count here is sampled tokens. Prompt/prefill tokens are
+                # not counted anywhere in this pipeline -- see the note in model/utils.py.
                 mean_tokens = statistics.mean(tokens)
                 std_tokens = statistics.stdev(tokens) if len(tokens) > 1 else 0.0
                 tourney_mean_tokens = statistics.mean(tourney_tokens) if tourney_tokens else mean_tokens
@@ -246,30 +276,37 @@ if __name__ == '__main__':
                 })
                 
                 all_dataset_tokens.extend(tokens)
-                
+
             # Dataset-wide global token distributions
             dataset_mean_tokens = statistics.mean(all_dataset_tokens) if all_dataset_tokens else 0
             dataset_std_tokens = statistics.stdev(all_dataset_tokens) if len(all_dataset_tokens) > 1 else 0.0
-            
+
             final_metrics["dataset_metrics"] = {
                 "average_score": total_score / num_examples,
                 "mean_tokens": dataset_mean_tokens,
                 "std_tokens": dataset_std_tokens,
                 "num_chunks_averaged": num_chunks
             }
-            
+
             path_outputs[best_of_n] = final_metrics
-            print(f"Path: {path} | best_of_{best_of_n} avg score: {final_metrics['dataset_metrics']['average_score']:.4f} | avg tokens: {dataset_mean_tokens:.2f}", file=sys.stderr)
+            print(f"Path: {path} | best_of_{best_of_n} avg score: {final_metrics['dataset_metrics']['average_score']:.4f} | avg decode tokens: {dataset_mean_tokens:.2f}", file=sys.stderr)
 
         # 3. Save isolated, perfectly formatted JSON file for each valid path
         time_str = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         strat_name = strategy.name if strategy else "None"
         bons_str = '_'.join(map(str, best_of_ns))
-        
-        fname = f"{time_str}_{path}_bon_{bons_str}_strat_{strat_name}_plan_{max_plan_tokens}_prune_{prune_ratio}.json"
+        # bok (diverse) files carry _diverse; bon (regen, no dedup) carry _regen; plain
+        # prune-only carries neither. Kept distinct so analysis never mixes the sweeps.
+        variant_tag = "_diverse" if args.diverse else ("_regen" if args.regen else "")
+
+        fname = f"{time_str}_{path}_bon_{bons_str}_strat_{strat_name}_plan_{max_plan_tokens}_prune_{prune_ratio}{variant_tag}.json"
         print(f"Saving format fixed JSON to: {fname}")
-        
+
         with open(fname, "w") as f:
             json.dump(path_outputs, f, indent=4, default=vllm_encoder)
 
         format_json_inplace(fname)
+
+
+if __name__ == '__main__':
+    run(parse_args())

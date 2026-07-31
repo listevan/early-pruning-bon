@@ -14,7 +14,9 @@ tourney. Layout (see main.py:196-252):
     { "<N>": {                                # N = best-of-N: 1, 2, 4, 8, 16
         "dataset_metrics": {...},
         "prompt_metrics": [                   # one entry per question (100)
-          { "mean_tokens": float,
+          { "mean_tokens": float,             # SAMPLED (decode) tokens only -- prompt/prefill
+                                              # tokens are not counted anywhere in this
+                                              # pipeline. See model/utils.py and the README.
             "chunks_data": {
               "results":        [ {"score": 0|1}, ... ],   # one per chunk
               "random_results": [ {"score": 0|1}, ... ],
@@ -37,6 +39,11 @@ USAGE
 -----
     python3 analysis.py RESULTS_DIR [--plan 1000] [--prune 1.5]
     python3 analysis.py --baseline b.json --rank r.json --random rnd.json
+    python3 analysis.py RESULTS_DIR --grid --regen     # the regenerate-back-to-N sweep
+
+The prune-only sweep and the regenerate-back-to-N sweep (`--regen`, files ending
+`_regen.json`) are separate experiments and are never pooled into one grid. They
+share a baseline: baseline generation has no regen stage.
 
 No third-party dependencies. Standard library only.
 """
@@ -76,16 +83,36 @@ def load_arm(path):
     return out
 
 
-def discover(directory, plan, prune):
-    """Find one file per arm in a directory, optionally filtered by plan/prune."""
+def file_variant(path):
+    """The sweep variant a result filename belongs to: '' (prune-only), 'regen'
+    (best-of-N regen), or 'diverse' (best-of-k, unique-pruned)."""
+    m = re.search(r"_prune_[\d.]+(?:_(regen|diverse))?\.json$", os.path.basename(path))
+    return (m.group(1) or "") if m else ""
+
+
+def discover(directory, plan, prune, variant=""):
+    """Find one file per arm in a directory, optionally filtered by plan/prune.
+
+    `variant` selects which sweep to read: '' = prune-only, 'regen' = best-of-N
+    regeneration (filenames end `_regen.json`), 'diverse' = best-of-k with unique
+    pruning (`_diverse.json`). The three are separate experiments and are never
+    mixed: a run in one variant excludes files of the others.
+
+    The BASELINE arm is exempt from the variant filter. Baseline generation has no
+    regen/diverse stage, so there is only ever a plain baseline file for the other
+    arms to be compared against.
+    """
     found = {}
     for arm in ARMS:
         pat = os.path.join(directory, f"*_{arm}_bon_*.json")
         cands = sorted(glob.glob(pat))
+        want = "" if arm == "baseline" else variant
+        cands = [c for c in cands if file_variant(c) == want]
         if plan is not None:
             cands = [c for c in cands if f"_plan_{plan}_" in c]
         if prune is not None:
-            cands = [c for c in cands if c.endswith(f"_prune_{prune}.json")]
+            suffix = f"_{want}" if want else ""
+            cands = [c for c in cands if c.endswith(f"_prune_{prune}{suffix}.json")]
         if cands:
             if len(cands) > 1:
                 print(f"note: {len(cands)} candidates for '{arm}', taking newest: "
@@ -397,6 +424,14 @@ def main():
                     help="non-inferiority margin in percentage points (default 5). A parity "
                          "claim needs the lower CI bound to clear -margin; a non-significant "
                          "two-sided test does NOT establish equivalence.")
+    ap.add_argument("--regen", action="store_true",
+                    help="analyse the best-of-N regen runs (files ending _regen.json) instead "
+                         "of the prune-only runs.")
+    ap.add_argument("--diverse", action="store_true",
+                    help="analyse the best-of-k diverse runs (files ending _diverse.json): prune "
+                         "to k UNIQUE approaches, then regen. Mutually exclusive with --regen. "
+                         "Each variant is a separate experiment and is never mixed into one grid; "
+                         "the plain baseline arm is shared across all of them.")
     ap.add_argument("--grid", action="store_true",
                     help="run every (plan, prune) config found in the directory and apply a "
                          "multiple-comparison correction across the whole grid. Correcting "
@@ -406,10 +441,15 @@ def main():
         ap.add_argument(f"--{arm}", help=f"explicit path to the {arm} JSON")
     args = ap.parse_args()
 
+    if args.regen and args.diverse:
+        ap.error("--regen and --diverse are mutually exclusive (separate experiments)")
+    variant = "diverse" if args.diverse else ("regen" if args.regen else "")
+
     if args.grid:
         if not args.directory:
             ap.error("--grid needs a directory")
-        run_grid(args.directory, args.margin / 100.0, explicit_baseline=args.baseline)
+        run_grid(args.directory, args.margin / 100.0, explicit_baseline=args.baseline,
+                 variant=variant)
         return
 
     if args.scores:
@@ -429,7 +469,7 @@ def main():
     else:
         files = {a: getattr(args, a) for a in ARMS if getattr(args, a)}
         if args.directory:
-            files = {**discover(args.directory, args.plan, args.prune), **files}
+            files = {**discover(args.directory, args.plan, args.prune, variant=variant), **files}
         if not files:
             ap.error("no result JSONs found. Pass a directory, explicit --<arm> paths, "
                      "or a --scores extract.")
@@ -469,6 +509,20 @@ def run_report(data, files, margin):
         print(f"  {arm:<9} {os.path.basename(p)}")
     ns = sorted({n for d in data.values() for n in d})
     print(f"  N values: {ns}")
+
+    # Question counts per arm. The regen sweep runs 30 examples while the shared baseline
+    # was generated at 100. reasoning_gym is size-independent for a fixed seed -- question
+    # q is the SAME Countdown instance in both -- so every paired contrast below silently
+    # intersects down to the shared questions. That is correct, but it must not be silent:
+    # the effective n for those contrasts is the smaller count, not the baseline's.
+    qcounts = {arm: len({q for blk in blocks.values() for q in blk["tokens"]})
+               for arm, blocks in data.items()}
+    print("  questions: " + ", ".join(f"{a}={qcounts[a]}" for a in sorted(qcounts)))
+    if len(set(qcounts.values())) > 1:
+        print(f"  NOTE: arms differ in question count -- paired contrasts use the "
+              f"{min(qcounts.values())} shared questions. Section 1 accuracies are each "
+              f"arm's own mean over its own questions, so the baseline row there is NOT "
+              f"restricted to the overlap and will not equal the contrasts.")
 
     # ---- 1. per-cell accuracy and tokens
     print("\n" + "=" * 108)
@@ -635,20 +689,33 @@ def run_report(data, files, margin):
     print("Clusters are questions. deff > 1 means the naive interval was too narrow.")
 
 
-def run_grid(directory, margin, explicit_baseline=None):
-    """Run every (plan, prune) config in `directory`, then correct across all of them."""
+def run_grid(directory, margin, explicit_baseline=None, variant=""):
+    """Run every (plan, prune) config in `directory`, then correct across all of them.
+
+    `variant` picks which sweep to walk: '' prune-only, 'regen' best-of-N regen,
+    'diverse' best-of-k. They are different experiments, so pooling them into one
+    grid, and one multiple-comparison correction, would be meaningless.
+    """
     combos = set()
     for path in glob.glob(os.path.join(directory, "*_bon_*.json")):
-        m = re.search(r"_plan_(\d+)_prune_([\d.]+)\.json$", os.path.basename(path))
-        if m and "_baseline_" not in os.path.basename(path):
-            combos.add((int(m.group(1)), m.group(2)))
+        base = os.path.basename(path)
+        if "_baseline_" in base:
+            continue
+        m = re.search(r"_plan_(\d+)_prune_([\d.]+)(?:_(regen|diverse))?\.json$", base)
+        if not m:
+            continue
+        if (m.group(3) or "") != variant:
+            continue                                  # wrong sweep; keep them apart
+        combos.add((int(m.group(1)), m.group(2)))
 
     if not combos:
-        print("no plan/prune configs found", file=sys.stderr)
+        which = variant or "prune-only"
+        hint = "" if variant else " (regen/diverse runs need --regen / --diverse)"
+        print(f"no {which} plan/prune configs found{hint}", file=sys.stderr)
         return
 
     for plan, prune in sorted(combos):
-        files = discover(directory, str(plan), prune)
+        files = discover(directory, str(plan), prune, variant=variant)
         # The baseline filename carries the argparse default (prune_2, an int) while
         # strategy files carry the float (prune_2.0), so discover() cannot match both.
         if explicit_baseline:
