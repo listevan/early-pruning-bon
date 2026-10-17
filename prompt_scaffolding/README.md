@@ -37,7 +37,7 @@ a random pick, the oracle ceiling (was *any* candidate right?), and the tourname
 MAX_PLAN_TOKENS="1000" PRUNE_RATIOS="2" NUM_GPUS=1 NUM_EXAMPLES=30 ./run_experiment.sh
 
 # Full sweep: 3 max_plan_tokens x 4 prune_ratios, one config per array task
-sbatch job_sweep_n100.slurm
+sbatch job_sweep_n100_pruneonly.slurm   # or job_sweep_n100_regen.slurm
 ```
 
 `run_experiment.sh` runs the baseline once, caches it, then sweeps every

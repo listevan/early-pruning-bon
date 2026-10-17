@@ -4,7 +4,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --partition=gpuA40x4
-#SBATCH --account=bfvr-delta-gpu
+# Set --account to your own allocation (these jobs ran on NCSA Delta).
+#SBATCH --account=YOUR_ALLOCATION
 #SBATCH --job-name=scaffold_n100rg
 #SBATCH --time=47:00:00
 #SBATCH --constraint="scratch"
@@ -17,7 +18,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --gpu-bind=none
 #SBATCH --array=0-5
-##SBATCH --mail-user=sl212@illinois.edu
+##SBATCH --mail-user=you@example.edu
 ##SBATCH --mail-type="BEGIN,END"
 
 module reset
@@ -25,7 +26,7 @@ module list
 echo "Job is starting on $(hostname)"
 echo "Array task ${SLURM_ARRAY_TASK_ID} of job ${SLURM_ARRAY_JOB_ID}"
 
-cd ~/CS497/prompt_scaffolding
+cd "$SLURM_SUBMIT_DIR"  # submit from prompt_scaffolding/
 export VLLM_LOGGING_LEVEL=ERROR
 export VLLM_CACHE_ROOT="$PWD/.vllm_cache/n100rg_${SLURM_ARRAY_TASK_ID}"
 mkdir -p "$VLLM_CACHE_ROOT"

@@ -4,7 +4,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --partition=gpuA40x4
-#SBATCH --account=bfvr-delta-gpu
+# Set --account to your own allocation (these jobs ran on NCSA Delta).
+#SBATCH --account=YOUR_ALLOCATION
 #SBATCH --job-name=scaffold_n100po
 #SBATCH --time=48:00:00
 #SBATCH --constraint="scratch"
@@ -20,7 +21,7 @@
 #SBATCH --gpu-bind=none
 ### 2 max_plan_tokens (1000 2500) x prune_ratio 2 = 2 tasks.
 #SBATCH --array=0-1
-##SBATCH --mail-user=sl212@illinois.edu
+##SBATCH --mail-user=you@example.edu
 ##SBATCH --mail-type="BEGIN,END"
 
 module reset
@@ -29,7 +30,7 @@ echo "Job is starting on $(hostname)"
 echo "Array task ${SLURM_ARRAY_TASK_ID} of job ${SLURM_ARRAY_JOB_ID}"
 echo "Using uv from: $(which uv)"
 
-cd ~/CS497/prompt_scaffolding
+cd "$SLURM_SUBMIT_DIR"  # submit from prompt_scaffolding/
 export VLLM_LOGGING_LEVEL=ERROR
 export VLLM_CACHE_ROOT="$PWD/.vllm_cache/n100po_${SLURM_ARRAY_TASK_ID}"
 mkdir -p "$VLLM_CACHE_ROOT"

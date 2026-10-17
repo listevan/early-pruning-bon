@@ -1,6 +1,8 @@
 import json
+import sys
 
-with open('/u/stevex2/prompt_scaffolding/CS497/prompt_scaffolding/2026-03-10 02:43:49.293777_bon_8_strategy_CompletionStrategy.json', 'r') as file:
+# usage: python grade_output.py RESULT.json  (March-era 3-element results schema)
+with open(sys.argv[1], 'r') as file:
     data = json.load(file)
 
 data_8 = data['8']

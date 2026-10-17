@@ -1,0 +1,7 @@
+# Versions from the cluster environment's last freeze (May 2026).
+# vllm pulls in a matching torch. analysis.py only needs the standard library.
+vllm==0.15.0
+reasoning-gym==0.1.24
+transformers==4.57.6
+datasets==4.5.0
+matplotlib==3.10.8

@@ -4,7 +4,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=gpuA40x4
-#SBATCH --account=bfvr-delta-gpu
+# Set --account to your own allocation (these jobs ran on NCSA Delta).
+#SBATCH --account=YOUR_ALLOCATION
 #SBATCH --job-name=scaffold_base32
 #SBATCH --time=48:00:00
 #SBATCH --constraint="scratch"
@@ -16,7 +17,7 @@
 # for big batches over the 100 x 32 completions.
 #SBATCH --gpus-per-node=4
 #SBATCH --gpu-bind=none
-##SBATCH --mail-user=sl212@illinois.edu
+##SBATCH --mail-user=you@example.edu
 ##SBATCH --mail-type="BEGIN,END"
 
 module reset
@@ -24,7 +25,7 @@ module list
 echo "Job is starting on $(hostname)"
 echo "Using uv from: $(which uv)"
 
-cd ~/CS497/prompt_scaffolding
+cd "$SLURM_SUBMIT_DIR"  # submit from prompt_scaffolding/
 export VLLM_LOGGING_LEVEL=ERROR
 
 # Regenerate the baseline at max_bon=32 over all 100 problems. Generating 32 completions

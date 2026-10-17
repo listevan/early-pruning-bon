@@ -1,5 +1,11 @@
 # Prompt Scaffolding — Measurements
 
+> Audit of the March to May 2026 runs, most of which ran before the July pipeline fixes.
+> For current results see [`runs/2026-07-18_prune_only/RESULTS.md`](../runs/2026-07-18_prune_only/RESULTS.md).
+> Paths below are relative to `prompt_scaffolding/`, and code citations point at the code as it
+> was in May. The four April/May result folders listed in §4 (`ranked_selection_results/`,
+> `non_ranked_selection_results/`, `model_select_*`) now live in `archive/`.
+
 Numbers recomputed from the raw JSON files. Code claims cite `file:line`.
 
 **Interval methods used below**, stated explicitly because they are mixed:
